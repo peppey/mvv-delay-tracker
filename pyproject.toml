@@ -1,0 +1,22 @@
+[project]
+name = "mvv-delay-tracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Pia Baronetzky", email = "pia@baronetzky.org" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "gtfs-realtime-bindings>=2.2.0",
+    "ipykernel>=7.3.0",
+    "pandas>=2.3.3",
+    "requests>=2.34.2",
+]
+
+[project.scripts]
+mvv-delay-tracker = "mvv_delay_tracker:main"
+
+[build-system]
+requires = ["uv_build>=0.12.9,<0.13.0"]
+build-backend = "uv_build"
