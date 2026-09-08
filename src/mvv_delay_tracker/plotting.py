@@ -1,10 +1,8 @@
 import json
-import math
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from mvv_delay_tracker.munich_filter import wgs84_to_utm32, point_is_inside_munich
-
+from mvv_delay_tracker.munich_filter import wgs84_to_utm32
 
 
 def load_data(
@@ -67,7 +65,7 @@ def calculate_average_station_delay(delay_df):
 
 
 def load_stop_coordinates(
-    stops_path="data/stops.txt"
+    stops_path="data/munich_stops.csv"
 ):
     """
     Load stop information and coordinates.
@@ -149,31 +147,6 @@ def add_utm_coordinates(
     return station_delay_df
 
 
-def filter_stations_inside_munich(
-    station_delay_df,
-    munich_geojson
-):
-    """
-    Keep only stations located inside Munich.
-    """
-
-    station_delay_df["inside_munich"] = (
-        station_delay_df.apply(
-            lambda row: point_is_inside_munich(
-                row["utm_x"],
-                row["utm_y"],
-                munich_geojson
-            ),
-            axis=1
-        )
-    )
-
-    station_delay_df = station_delay_df[
-        station_delay_df["inside_munich"]
-    ].copy()
-
-    return station_delay_df
-
 
 def plot_munich_boundaries(
     ax,
@@ -234,15 +207,59 @@ def plot_station_delays(
         c=station_delay_df["delay_minutes"],
         cmap="RdYlGn_r",
         s=35,
-        alpha=0.85
+        alpha=0.85,
+        vmin=0,
+        vmax=20,
     )
 
     return scatter
 
 
+def mark_maximum_delay_station(
+    ax,
+    station_delay_df
+):
+    """
+    Mark and label the station with the highest
+    average delay.
+    """
+
+    maximum_delay_station = station_delay_df.loc[
+        station_delay_df["delay_minutes"].idxmax()
+    ]
+
+    ax.scatter(
+        maximum_delay_station["utm_x"],
+        maximum_delay_station["utm_y"],
+        s=120,
+        facecolors="none",
+        edgecolors="black",
+        linewidths=2,
+        zorder=3,
+    )
+
+    ax.annotate(
+        (
+            f'{maximum_delay_station["stop_name"]}: '
+            f'Durchschnittlich '
+            f'{maximum_delay_station["delay_minutes"]:.0f} '
+            f'Minuten Verspätung'
+        ),
+        xy=(
+            maximum_delay_station["utm_x"],
+            maximum_delay_station["utm_y"],
+        ),
+        xytext=(10, 10),
+        textcoords="offset points",
+        fontsize=10,
+        fontweight="bold",
+        zorder=4,
+    )
+
+
 def configure_munich_delay_plot(ax):
     """
-    Configure title, labels and aspect ratio.
+    Configure title and aspect ratio.
     """
 
     ax.set_title(
@@ -250,21 +267,15 @@ def configure_munich_delay_plot(ax):
         fontsize=16
     )
 
-    ax.set_xlabel(
-        "UTM Easting [m]"
-    )
-
-    ax.set_ylabel(
-        "UTM Northing [m]"
-    )
-
     ax.set_aspect("equal")
+
+    ax.axis("off")
 
 
 def generate_plot(
     data_path="data/mvv_realtime.parquet",
     geojson_path="data/munich.geojson",
-    stops_path="data/stops.txt",
+    stops_path="data/munich_stops.csv",
     output_path="docs/munich_delays.png"
 ):
     """
@@ -299,11 +310,6 @@ def generate_plot(
         station_delay
     )
 
-    station_delay = filter_stations_inside_munich(
-        station_delay,
-        munich_map
-    )
-
     figure, axis = plt.subplots(
         figsize=(12, 12)
     )
@@ -314,6 +320,11 @@ def generate_plot(
     )
 
     scatter = plot_station_delays(
+        axis,
+        station_delay
+    )
+
+    mark_maximum_delay_station(
         axis,
         station_delay
     )
