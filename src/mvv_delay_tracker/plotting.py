@@ -208,8 +208,6 @@ def plot_station_delays(
         cmap="RdYlGn_r",
         s=35,
         alpha=0.85,
-        vmin=0,
-        vmax=20,
     )
 
     return scatter
