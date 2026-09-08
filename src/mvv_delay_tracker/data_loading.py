@@ -7,8 +7,6 @@ from google.transit import gtfs_realtime_pb2
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
 
-MUNICH_AGENCIES = ["100", "191", "364"]
-
 
 def load_gtfs_realtime_feed(url=GTFS_REALTIME_URL):
     """
@@ -27,11 +25,10 @@ def load_gtfs_realtime_feed(url=GTFS_REALTIME_URL):
 def preprocess_gtfs(
     data_dir,
     munich_geojson_path,
-    munich_agencies=MUNICH_AGENCIES,
 ):
     """
-    Preprocess static GTFS data for the selected Munich agencies
-    and filter stops geographically to the Munich boundary.
+    Preprocess static GTFS data and filter stops geographically
+    to the Munich boundary.
 
     Parameters
     ----------
@@ -41,50 +38,62 @@ def preprocess_gtfs(
     munich_geojson_path : str
         Path to the GeoJSON file containing the Munich boundary.
 
-    munich_agencies : list[str]
-        Agency IDs to include.
-
     Returns
     -------
-    trip_lines : dict
-        Mapping from trip_id to line name.
+    trip_info : dict
+        Mapping from trip_id to line and agency information.
 
     stop_names : dict
         Mapping from geographically valid stop_id to stop name.
     """
 
-    routes_df = pd.read_csv(f"{data_dir}/routes.txt")
-    trips_df = pd.read_csv(f"{data_dir}/trips.txt")
-    stops_df = pd.read_csv(f"{data_dir}/munich_stops.csv")
-
-    routes_df["route_id"] = routes_df["route_id"].astype(str)
-    routes_df["agency_id"] = routes_df["agency_id"].astype(str)
-
-    trips_df["trip_id"] = trips_df["trip_id"].astype(str)
-    trips_df["route_id"] = trips_df["route_id"].astype(str)
-
-    stops_df["stop_id"] = stops_df["stop_id"].astype(str)
-
-    munich_routes = routes_df[
-        routes_df["agency_id"].isin(munich_agencies)
-    ]
-
-    route_lines = (
-        munich_routes
-        .set_index("route_id")["route_short_name"]
-        .to_dict()
+    routes_df = pd.read_csv(
+        f"{data_dir}/routes.txt",
+        dtype={
+            "route_id": str,
+            "agency_id": str,
+        },
     )
 
-    munich_trips = trips_df[
-        trips_df["route_id"].isin(route_lines)
-    ]
-
-    trip_lines = (
-        munich_trips
-        .set_index("trip_id")["route_id"]
-        .map(route_lines)
-        .to_dict()
+    trips_df = pd.read_csv(
+        f"{data_dir}/trips.txt",
+        dtype={
+            "trip_id": str,
+            "route_id": str,
+        },
     )
+
+    stops_df = pd.read_csv(
+        f"{data_dir}/munich_stops.csv",
+        dtype={
+            "stop_id": str,
+        },
+    )
+
+    route_info = (
+        routes_df[
+            [
+                "route_id",
+                "route_short_name",
+                "agency_id",
+            ]
+        ]
+        .set_index("route_id")
+        .to_dict("index")
+    )
+
+    trip_info = {}
+
+    for _, trip in trips_df.iterrows():
+        route_id = trip["route_id"]
+
+        if route_id not in route_info:
+            continue
+
+        trip_info[trip["trip_id"]] = {
+            "line": route_info[route_id]["route_short_name"],
+            "agency_id": route_info[route_id]["agency_id"],
+        }
 
     stop_names = (
         stops_df
@@ -92,13 +101,13 @@ def preprocess_gtfs(
         .to_dict()
     )
 
-    return trip_lines, stop_names
+    return trip_info, stop_names
 
 
 def parse_trip_updates(
     feed,
     stop_names,
-    trip_lines,
+    trip_info,
     observation_timestamp,
 ):
     """
@@ -114,9 +123,11 @@ def parse_trip_updates(
 
         trip = entity.trip_update.trip
 
-        line = trip_lines.get(str(trip.trip_id))
+        trip_id = str(trip.trip_id)
 
-        if line is None:
+        info = trip_info.get(trip_id)
+
+        if info is None:
             continue
 
         for stop in entity.trip_update.stop_time_update:
@@ -126,11 +137,17 @@ def parse_trip_updates(
             if stop_id not in stop_names:
                 continue
 
+            stop_id = str(stop.stop_id)
+
+            if stop_id not in stop_names:
+                continue
+
             row = {
                 "observation_timestamp": observation_timestamp,
-                "trip_id": trip.trip_id,
+                "trip_id": trip_id,
                 "start_date": trip.start_date,
-                "line": line,
+                "line": info["line"],
+                "agency_id": info["agency_id"],
                 "stop_id": stop_id,
                 "stop_name": stop_names[stop_id],
                 "stop_sequence": stop.stop_sequence,
@@ -155,7 +172,7 @@ def parse_trip_updates(
 
 def load_new_data(
     data_dir="data",
-    munich_geojson_path="data/munich.geojson",
+    munich_geojson_path="munich.geojson",
 ):
     """
     Load and process the current MVV real-time data.
@@ -165,7 +182,7 @@ def load_new_data(
 
     feed = load_gtfs_realtime_feed()
 
-    trip_lines, stop_names = preprocess_gtfs(
+    trip_info, stop_names = preprocess_gtfs(
         data_dir=data_dir,
         munich_geojson_path=munich_geojson_path,
     )
@@ -173,7 +190,7 @@ def load_new_data(
     realtime_df = parse_trip_updates(
         feed=feed,
         stop_names=stop_names,
-        trip_lines=trip_lines,
+        trip_info=trip_info,
         observation_timestamp=observation_timestamp,
     )
 
