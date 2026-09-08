@@ -4,8 +4,6 @@ import requests
 import pandas as pd
 from datetime import datetime
 from google.transit import gtfs_realtime_pb2
-from mvv_delay_tracker.munich_filter import wgs84_to_utm32, point_is_inside_munich
-
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
 
@@ -38,7 +36,7 @@ def preprocess_gtfs(
     Parameters
     ----------
     data_dir : str
-        Directory containing routes.txt, trips.txt and stops.txt.
+        Directory containing routes.txt, trips.txt and munich_stops.csv.
 
     munich_geojson_path : str
         Path to the GeoJSON file containing the Munich boundary.
@@ -57,7 +55,7 @@ def preprocess_gtfs(
 
     routes_df = pd.read_csv(f"{data_dir}/routes.txt")
     trips_df = pd.read_csv(f"{data_dir}/trips.txt")
-    stops_df = pd.read_csv(f"{data_dir}/stops.txt")
+    stops_df = pd.read_csv(f"{data_dir}/munich_stops.csv")
 
     routes_df["route_id"] = routes_df["route_id"].astype(str)
     routes_df["agency_id"] = routes_df["agency_id"].astype(str)
@@ -87,32 +85,6 @@ def preprocess_gtfs(
         .map(route_lines)
         .to_dict()
     )
-
-    with open(munich_geojson_path, "r", encoding="utf-8") as file:
-        munich_geojson = json.load(file)
-
-    stops_df["utm_x"], stops_df["utm_y"] = zip(
-        *stops_df.apply(
-            lambda row: wgs84_to_utm32(
-                row["stop_lat"],
-                row["stop_lon"],
-            ),
-            axis=1,
-        )
-    )
-
-    stops_df["inside_munich"] = stops_df.apply(
-        lambda row: point_is_inside_munich(
-            row["utm_x"],
-            row["utm_y"],
-            munich_geojson,
-        ),
-        axis=1,
-    )
-
-    stops_df = stops_df[
-        stops_df["inside_munich"]
-    ]
 
     stop_names = (
         stops_df
