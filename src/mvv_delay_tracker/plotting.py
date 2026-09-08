@@ -2,6 +2,7 @@ import json
 
 import matplotlib.pyplot as plt
 import pandas as pd
+
 from mvv_delay_tracker.geographic import wgs84_to_utm32
 
 
@@ -147,7 +148,6 @@ def add_utm_coordinates(
     return station_delay_df
 
 
-
 def plot_munich_boundaries(
     ax,
     munich_geojson
@@ -236,34 +236,46 @@ def mark_maximum_delay_station(
         zorder=3,
     )
 
+    annotation_text = (
+        f'{maximum_delay_station["stop_name"]}: '
+        f'Durchschnittlich '
+        f'{maximum_delay_station["delay_minutes"]:.0f} '
+        f'Minuten Verspätung'
+    )
+
     ax.annotate(
-        (
-            f'{maximum_delay_station["stop_name"]}: '
-            f'Durchschnittlich '
-            f'{maximum_delay_station["delay_minutes"]:.0f} '
-            f'Minuten Verspätung'
-        ),
+        annotation_text,
         xy=(
             maximum_delay_station["utm_x"],
             maximum_delay_station["utm_y"],
         ),
-        xytext=(10, 10),
-        textcoords="offset points",
+        xycoords="data",
+        xytext=(
+            0.5,
+            1.04
+        ),
+        textcoords="axes fraction",
+        ha="center",
+        va="bottom",
         fontsize=10,
-        fontweight="bold",
+        fontweight="normal",
+        arrowprops={
+            "arrowstyle": "->",
+            "connectionstyle": "arc3,rad=0.1",
+            "linewidth": 1.5,
+            "alpha": 0.45,
+        },
+        annotation_clip=False,
         zorder=4,
     )
 
 
-def configure_munich_delay_plot(ax):
+def configure_munich_delay_plot(
+    ax
+):
     """
-    Configure title and aspect ratio.
+    Configure aspect ratio and axis visibility.
     """
-
-    ax.set_title(
-        "ÖPNV-Verspätungen in München",
-        fontsize=16
-    )
 
     ax.set_aspect("equal")
 
@@ -281,7 +293,7 @@ def generate_plot(
 
     This function combines the complete plotting pipeline:
     loading data, calculating station delays, adding coordinates,
-    filtering stations to Munich, and generating the plot.
+    and generating the plot.
     """
 
     munich_map, delay_df = load_data(
@@ -312,6 +324,13 @@ def generate_plot(
         figsize=(12, 12)
     )
 
+    figure.suptitle(
+        "ÖPNV-Verspätungen in München",
+        fontsize=18,
+        fontweight="normal",
+        y=0.98
+    )
+
     plot_munich_boundaries(
         axis,
         munich_map
@@ -329,7 +348,10 @@ def generate_plot(
 
     colorbar = figure.colorbar(
         scatter,
-        ax=axis
+        ax=axis,
+        orientation="horizontal",
+        fraction=0.035,
+        pad=0.04
     )
 
     colorbar.set_label(
@@ -340,7 +362,9 @@ def generate_plot(
         axis
     )
 
-    figure.tight_layout()
+    figure.tight_layout(
+        rect=[0, 0, 1, 0.94]
+    )
 
     figure.savefig(
         output_path,
