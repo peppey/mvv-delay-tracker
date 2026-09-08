@@ -7,7 +7,7 @@ from google.transit import gtfs_realtime_pb2
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
 
-MUNICH_AGENCIES = ["100", "191", "364"]
+MUNICH_AGENCIES = ["191", "364"]
 
 
 def load_gtfs_realtime_feed(url=GTFS_REALTIME_URL):
@@ -78,6 +78,8 @@ def preprocess_gtfs(
     munich_trips = trips_df[
         trips_df["route_id"].isin(route_lines)
     ]
+
+    print("AGENCIES: " +str(routes_df["agency_id"]))
 
     trip_lines = (
         munich_trips
