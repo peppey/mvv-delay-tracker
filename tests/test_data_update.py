@@ -12,6 +12,7 @@ EXPECTED_COLUMNS = [
     "trip_id",
     "start_date",
     "line",
+    "agency_id",
     "stop_id",
     "stop_name",
     "stop_sequence",
@@ -30,6 +31,7 @@ def test_load_existing_realtime_data(tmp_path):
         "trip_id": ["trip_123"],
         "start_date": ["20260909"],
         "line": ["S1"],
+        "agency_id": ["191"],
         "stop_id": ["1001"],
         "stop_name": ["Marienplatz"],
         "stop_sequence": [1],
@@ -61,6 +63,7 @@ def test_update_realtime_data_appends_new_data():
         "start_date": ["20260909"],
         "stop_id": ["1001"],
         "line": ["S1"],
+        "agency_id": ["191"],
         "departure_delay": [30],
     })
 
@@ -69,6 +72,7 @@ def test_update_realtime_data_appends_new_data():
         "start_date": ["20260909"],
         "stop_id": ["1002"],
         "line": ["S8"],
+        "agency_id": ["364"],
         "departure_delay": [60],
     })
 
@@ -82,6 +86,10 @@ def test_update_realtime_data_appends_new_data():
         "trip_123",
         "trip_456",
     ]
+    assert list(result["agency_id"]) == [
+        "191",
+        "364",
+    ]
 
 
 def test_update_realtime_data_keeps_latest_observation():
@@ -93,6 +101,7 @@ def test_update_realtime_data_keeps_latest_observation():
         "start_date": ["20260909"],
         "stop_id": ["1001"],
         "line": ["S1"],
+        "agency_id": ["191"],
         "departure_delay": [30],
     })
 
@@ -104,6 +113,7 @@ def test_update_realtime_data_keeps_latest_observation():
         "start_date": ["20260909"],
         "stop_id": ["1001"],
         "line": ["S1"],
+        "agency_id": ["191"],
         "departure_delay": [120],
     })
 
@@ -115,6 +125,7 @@ def test_update_realtime_data_keeps_latest_observation():
     assert len(result) == 1
     assert result.iloc[0]["departure_delay"] == 120
     assert result.iloc[0]["observation_timestamp"] == "2026-09-09 10:05:00"
+    assert result.iloc[0]["agency_id"] == "191"
 
 
 def test_update_realtime_data_deduplicates_by_trip_start_date_stop():
@@ -122,6 +133,8 @@ def test_update_realtime_data_deduplicates_by_trip_start_date_stop():
         "trip_id": ["trip_123", "trip_123"],
         "start_date": ["20260909", "20260909"],
         "stop_id": ["1001", "1002"],
+        "line": ["S1", "S1"],
+        "agency_id": ["191", "191"],
         "departure_delay": [30, 40],
     })
 
@@ -129,6 +142,8 @@ def test_update_realtime_data_deduplicates_by_trip_start_date_stop():
         "trip_id": ["trip_123", "trip_456"],
         "start_date": ["20260909", "20260909"],
         "stop_id": ["1001", "1003"],
+        "line": ["S1", "S8"],
+        "agency_id": ["191", "364"],
         "departure_delay": [90, 60],
     })
 
@@ -145,6 +160,7 @@ def test_update_realtime_data_deduplicates_by_trip_start_date_stop():
     ].iloc[0]
 
     assert row["departure_delay"] == 90
+    assert row["agency_id"] == "191"
 
 
 def test_update_realtime_data_preserves_order():
@@ -152,12 +168,14 @@ def test_update_realtime_data_preserves_order():
         "trip_id": ["trip_123"],
         "start_date": ["20260909"],
         "stop_id": ["1001"],
+        "agency_id": ["191"],
     })
 
     new_df = pd.DataFrame({
         "trip_id": ["trip_456"],
         "start_date": ["20260909"],
         "stop_id": ["1002"],
+        "agency_id": ["364"],
     })
 
     result = update_realtime_data(
@@ -170,6 +188,11 @@ def test_update_realtime_data_preserves_order():
         "trip_456",
     ]
 
+    assert list(result["agency_id"]) == [
+        "191",
+        "364",
+    ]
+
 
 def test_save_realtime_data(tmp_path):
     parquet_path = tmp_path / "realtime.parquet"
@@ -178,6 +201,8 @@ def test_save_realtime_data(tmp_path):
         "trip_id": ["trip_123"],
         "start_date": ["20260909"],
         "stop_id": ["1001"],
+        "line": ["S1"],
+        "agency_id": ["191"],
         "departure_delay": [60],
     })
 

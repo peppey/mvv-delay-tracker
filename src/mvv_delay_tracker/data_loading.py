@@ -1,12 +1,9 @@
-import json
-import math
 import requests
 import pandas as pd
 from datetime import datetime
 from google.transit import gtfs_realtime_pb2
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
-
 
 
 def load_gtfs_realtime_feed(url=GTFS_REALTIME_URL):
@@ -41,8 +38,8 @@ def preprocess_gtfs(
 
     Returns
     -------
-    trip_lines : dict
-        Mapping from trip_id to line name.
+    trip_info : dict
+        Mapping from trip_id to line and agency information.
 
     stop_names : dict
         Mapping from stop_id to stop name.
@@ -52,6 +49,7 @@ def preprocess_gtfs(
         f"{data_dir}/routes.txt",
         dtype={
             "route_id": str,
+            "agency_id": str,
         },
     )
 
@@ -70,19 +68,30 @@ def preprocess_gtfs(
         },
     )
 
-    route_lines = (
-        routes_df
-        .set_index("route_id")["route_short_name"]
-        .to_dict()
+    route_info = (
+        routes_df[
+            [
+                "route_id",
+                "route_short_name",
+                "agency_id",
+            ]
+        ]
+        .set_index("route_id")
+        .to_dict("index")
     )
 
-    trip_lines = (
-        trips_df
-        .set_index("trip_id")["route_id"]
-        .map(route_lines)
-        .dropna()
-        .to_dict()
-    )
+    trip_info = {}
+
+    for _, trip in trips_df.iterrows():
+        route_id = trip["route_id"]
+
+        if route_id not in route_info:
+            continue
+
+        trip_info[trip["trip_id"]] = {
+            "line": route_info[route_id]["route_short_name"],
+            "agency_id": route_info[route_id]["agency_id"],
+        }
 
     stop_names = (
         stops_df
@@ -90,13 +99,13 @@ def preprocess_gtfs(
         .to_dict()
     )
 
-    return trip_lines, stop_names
+    return trip_info, stop_names
 
 
 def parse_trip_updates(
     feed,
     stop_names,
-    trip_lines,
+    trip_info,
     observation_timestamp,
 ):
     """
@@ -112,9 +121,11 @@ def parse_trip_updates(
 
         trip = entity.trip_update.trip
 
-        line = trip_lines.get(str(trip.trip_id))
+        trip_id = str(trip.trip_id)
 
-        if line is None:
+        info = trip_info.get(trip_id)
+
+        if info is None:
             continue
 
         for stop in entity.trip_update.stop_time_update:
@@ -126,9 +137,10 @@ def parse_trip_updates(
 
             row = {
                 "observation_timestamp": observation_timestamp,
-                "trip_id": trip.trip_id,
+                "trip_id": trip_id,
                 "start_date": trip.start_date,
-                "line": line,
+                "line": info["line"],
+                "agency_id": info["agency_id"],
                 "stop_id": stop_id,
                 "stop_name": stop_names[stop_id],
                 "stop_sequence": stop.stop_sequence,
@@ -163,7 +175,7 @@ def load_new_data(
 
     feed = load_gtfs_realtime_feed()
 
-    trip_lines, stop_names = preprocess_gtfs(
+    trip_info, stop_names = preprocess_gtfs(
         data_dir=data_dir,
         munich_geojson_path=munich_geojson_path,
     )
@@ -171,7 +183,7 @@ def load_new_data(
     realtime_df = parse_trip_updates(
         feed=feed,
         stop_names=stop_names,
-        trip_lines=trip_lines,
+        trip_info=trip_info,
         observation_timestamp=observation_timestamp,
     )
 

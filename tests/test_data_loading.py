@@ -20,10 +20,16 @@ def sample_stop_names():
 
 
 @pytest.fixture
-def sample_trip_lines():
+def sample_trip_info():
     return {
-        "123": "S1",
-        "456": "S8",
+        "123": {
+            "line": "S1",
+            "agency_id": "191",
+        },
+        "456": {
+            "line": "S8",
+            "agency_id": "364",
+        },
     }
 
 
@@ -67,7 +73,7 @@ def test_load_gtfs_realtime_feed_http_error():
             load_gtfs_realtime_feed("http://test-url")
 
 
-def test_preprocess_gtfs_filters_agencies(tmp_path):
+def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
     routes = pd.DataFrame({
         "route_id": [1, 2, 3],
         "agency_id": [191, 364, 999],
@@ -88,18 +94,25 @@ def test_preprocess_gtfs_filters_agencies(tmp_path):
     trips.to_csv(tmp_path / "trips.txt", index=False)
     stops.to_csv(tmp_path / "munich_stops.csv", index=False)
 
-    trip_lines, stop_names = preprocess_gtfs(
+    trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
         munich_geojson_path="unused.geojson",
-        munich_agencies=["191", "364"],
     )
 
-    assert trip_lines == {
-        "101": "S1",
-        "102": "S8",
+    assert trip_info == {
+        "101": {
+            "line": "S1",
+            "agency_id": "191",
+        },
+        "102": {
+            "line": "S8",
+            "agency_id": "364",
+        },
+        "103": {
+            "line": "X1",
+            "agency_id": "999",
+        },
     }
-
-    assert "103" not in trip_lines
 
     assert stop_names == {
         "1001": "Marienplatz",
@@ -128,17 +141,24 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
     trips.to_csv(tmp_path / "trips.txt", index=False)
     stops.to_csv(tmp_path / "munich_stops.csv", index=False)
 
-    trip_lines, stop_names = preprocess_gtfs(
+    trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
         munich_geojson_path="unused.geojson",
-        munich_agencies=["191"],
     )
 
-    assert trip_lines == {"456": "S1"}
-    assert stop_names == {"789": "Test Stop"}
+    assert trip_info == {
+        "456": {
+            "line": "S1",
+            "agency_id": "191",
+        }
+    }
+
+    assert stop_names == {
+        "789": "Test Stop",
+    }
 
 
-def test_preprocess_gtfs_excludes_trips_from_other_agencies(tmp_path):
+def test_preprocess_gtfs_keeps_all_agencies(tmp_path):
     routes = pd.DataFrame({
         "route_id": ["munich", "outside"],
         "agency_id": ["191", "999"],
@@ -159,14 +179,20 @@ def test_preprocess_gtfs_excludes_trips_from_other_agencies(tmp_path):
     trips.to_csv(tmp_path / "trips.txt", index=False)
     stops.to_csv(tmp_path / "munich_stops.csv", index=False)
 
-    trip_lines, _ = preprocess_gtfs(
+    trip_info, _ = preprocess_gtfs(
         data_dir=str(tmp_path),
         munich_geojson_path="unused.geojson",
-        munich_agencies=["191"],
     )
 
-    assert "trip_munich" in trip_lines
-    assert "trip_outside" not in trip_lines
+    assert trip_info["trip_munich"] == {
+        "line": "S1",
+        "agency_id": "191",
+    }
+
+    assert trip_info["trip_outside"] == {
+        "line": "X1",
+        "agency_id": "999",
+    }
 
 
 def create_trip_update_feed(
@@ -200,7 +226,7 @@ def create_trip_update_feed(
 
 def test_parse_trip_updates_parses_valid_trip(
     sample_stop_names,
-    sample_trip_lines,
+    sample_trip_info,
     observation_timestamp,
 ):
     feed = create_trip_update_feed()
@@ -208,7 +234,7 @@ def test_parse_trip_updates_parses_valid_trip(
     df = parse_trip_updates(
         feed=feed,
         stop_names=sample_stop_names,
-        trip_lines=sample_trip_lines,
+        trip_info=sample_trip_info,
         observation_timestamp=observation_timestamp,
     )
 
@@ -219,6 +245,7 @@ def test_parse_trip_updates_parses_valid_trip(
     assert row["trip_id"] == "123"
     assert row["start_date"] == "20260909"
     assert row["line"] == "S1"
+    assert row["agency_id"] == "191"
     assert row["stop_id"] == "1001"
     assert row["stop_name"] == "Marienplatz"
     assert row["stop_sequence"] == 1
@@ -237,7 +264,7 @@ def test_parse_trip_updates_ignores_unknown_trip(
     df = parse_trip_updates(
         feed=feed,
         stop_names=sample_stop_names,
-        trip_lines={},
+        trip_info={},
         observation_timestamp=observation_timestamp,
     )
 
@@ -245,7 +272,7 @@ def test_parse_trip_updates_ignores_unknown_trip(
 
 
 def test_parse_trip_updates_ignores_unknown_stop(
-    sample_trip_lines,
+    sample_trip_info,
     observation_timestamp,
 ):
     feed = create_trip_update_feed(
@@ -255,7 +282,7 @@ def test_parse_trip_updates_ignores_unknown_stop(
     df = parse_trip_updates(
         feed=feed,
         stop_names={},
-        trip_lines=sample_trip_lines,
+        trip_info=sample_trip_info,
         observation_timestamp=observation_timestamp,
     )
 
@@ -264,7 +291,7 @@ def test_parse_trip_updates_ignores_unknown_stop(
 
 def test_parse_trip_updates_ignores_non_trip_update_entity(
     sample_stop_names,
-    sample_trip_lines,
+    sample_trip_info,
     observation_timestamp,
 ):
     from google.transit import gtfs_realtime_pb2
@@ -277,7 +304,7 @@ def test_parse_trip_updates_ignores_non_trip_update_entity(
     df = parse_trip_updates(
         feed=feed,
         stop_names=sample_stop_names,
-        trip_lines=sample_trip_lines,
+        trip_info=sample_trip_info,
         observation_timestamp=observation_timestamp,
     )
 
@@ -286,7 +313,7 @@ def test_parse_trip_updates_ignores_non_trip_update_entity(
 
 def test_parse_trip_updates_parses_arrival_and_departure(
     sample_stop_names,
-    sample_trip_lines,
+    sample_trip_info,
     observation_timestamp,
 ):
     from google.transit import gtfs_realtime_pb2
@@ -313,7 +340,7 @@ def test_parse_trip_updates_parses_arrival_and_departure(
     df = parse_trip_updates(
         feed=feed,
         stop_names=sample_stop_names,
-        trip_lines=sample_trip_lines,
+        trip_info=sample_trip_info,
         observation_timestamp=observation_timestamp,
     )
 
@@ -325,11 +352,13 @@ def test_parse_trip_updates_parses_arrival_and_departure(
     assert row["departure_delay"] == 60
     assert row["arrival_time"] is not None
     assert row["departure_time"] is not None
+    assert row["line"] == "S1"
+    assert row["agency_id"] == "191"
 
 
 def test_parse_trip_updates_handles_multiple_stops(
     sample_stop_names,
-    sample_trip_lines,
+    sample_trip_info,
     observation_timestamp,
 ):
     from google.transit import gtfs_realtime_pb2
@@ -355,7 +384,7 @@ def test_parse_trip_updates_handles_multiple_stops(
     df = parse_trip_updates(
         feed=feed,
         stop_names=sample_stop_names,
-        trip_lines=sample_trip_lines,
+        trip_info=sample_trip_info,
         observation_timestamp=observation_timestamp,
     )
 
@@ -363,13 +392,17 @@ def test_parse_trip_updates_handles_multiple_stops(
     assert list(df["stop_id"]) == ["1001", "1002"]
     assert list(df["stop_sequence"]) == [1, 2]
     assert list(df["departure_delay"]) == [10, 20]
+    assert list(df["agency_id"]) == ["191", "191"]
 
 
 def test_load_new_data_calls_pipeline():
     fake_feed = Mock()
 
-    fake_trip_lines = {
-        "123": "S1",
+    fake_trip_info = {
+        "123": {
+            "line": "S1",
+            "agency_id": "191",
+        },
     }
 
     fake_stop_names = {
@@ -379,6 +412,7 @@ def test_load_new_data_calls_pipeline():
     expected_df = pd.DataFrame({
         "trip_id": ["123"],
         "line": ["S1"],
+        "agency_id": ["191"],
         "stop_id": ["1001"],
     })
 
@@ -387,7 +421,7 @@ def test_load_new_data_calls_pipeline():
         return_value=fake_feed,
     ) as mock_load_feed, patch(
         "mvv_delay_tracker.data_loading.preprocess_gtfs",
-        return_value=(fake_trip_lines, fake_stop_names),
+        return_value=(fake_trip_info, fake_stop_names),
     ) as mock_preprocess, patch(
         "mvv_delay_tracker.data_loading.parse_trip_updates",
         return_value=expected_df,
@@ -405,6 +439,13 @@ def test_load_new_data_calls_pipeline():
         munich_geojson_path="test.geojson",
     )
 
-    mock_parse.assert_called_once()
+    mock_parse.assert_called_once_with(
+        feed=fake_feed,
+        stop_names=fake_stop_names,
+        trip_info=fake_trip_info,
+        observation_timestamp=mock_parse.call_args.kwargs[
+            "observation_timestamp"
+        ],
+    )
 
     assert result.equals(expected_df)

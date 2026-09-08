@@ -31,6 +31,7 @@ def load_existing_realtime_data(
                 "trip_id",
                 "start_date",
                 "line",
+                "agency_id",
                 "stop_id",
                 "stop_name",
                 "stop_sequence",
