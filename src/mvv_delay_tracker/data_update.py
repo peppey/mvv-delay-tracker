@@ -7,6 +7,9 @@ def load_existing_realtime_data(
     """
     Load existing MVV real-time data from a Parquet file.
 
+    If the Parquet file does not exist, return an empty DataFrame
+    with the expected columns.
+
     Parameters
     ----------
     parquet_path : str
@@ -15,10 +18,28 @@ def load_existing_realtime_data(
     Returns
     -------
     pandas.DataFrame
-        Existing MVV real-time data.
+        Existing MVV real-time data or an empty DataFrame.
     """
 
-    return pd.read_parquet(parquet_path)
+    try:
+        return pd.read_parquet(parquet_path)
+
+    except FileNotFoundError:
+        return pd.DataFrame(
+            columns=[
+                "observation_timestamp",
+                "trip_id",
+                "start_date",
+                "line",
+                "stop_id",
+                "stop_name",
+                "stop_sequence",
+                "departure_time",
+                "departure_delay",
+                "arrival_time",
+                "arrival_delay",
+            ]
+        )
 
 
 def update_realtime_data(
