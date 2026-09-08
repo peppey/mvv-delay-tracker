@@ -79,8 +79,6 @@ def preprocess_gtfs(
         trips_df["route_id"].isin(route_lines)
     ]
 
-    print("AGENCIES: " +str(routes_df["agency_id"]))
-
     trip_lines = (
         munich_trips
         .set_index("trip_id")["route_id"]
