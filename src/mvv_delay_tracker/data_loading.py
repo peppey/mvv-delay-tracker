@@ -1,3 +1,5 @@
+import json
+import math
 import requests
 import pandas as pd
 from datetime import datetime
@@ -42,7 +44,7 @@ def preprocess_gtfs(
         Mapping from trip_id to line and agency information.
 
     stop_names : dict
-        Mapping from stop_id to stop name.
+        Mapping from geographically valid stop_id to stop name.
     """
 
     routes_df = pd.read_csv(
@@ -129,6 +131,11 @@ def parse_trip_updates(
             continue
 
         for stop in entity.trip_update.stop_time_update:
+
+            stop_id = str(stop.stop_id)
+
+            if stop_id not in stop_names:
+                continue
 
             stop_id = str(stop.stop_id)
 
