@@ -6,11 +6,11 @@ This project is creating a publicly available dataset of MVV delays per station 
 
 ![Delays in Munich](docs/munich_delays.png)
 
-![Delays Report 2025](docs/munich_delay_statistics.png)
+![Delays Report 2026](docs/munich_delay_statistics.png)
 
 
 
-## Data
+## Licence
 
 The data used for this project is provided by
 [GTFS für Deutschland](https://www.gtfs.de/) and is based on the
