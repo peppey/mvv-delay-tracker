@@ -5,6 +5,7 @@ import pandas as pd
 from datetime import datetime
 from google.transit import gtfs_realtime_pb2
 
+
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
 
 
@@ -130,6 +131,12 @@ def parse_trip_updates(
         if info is None:
             continue
 
+        trip_schedule_relationship = (
+            gtfs_realtime_pb2.TripDescriptor.ScheduleRelationship.Name(
+                trip.schedule_relationship
+            )
+        )
+
         for stop in entity.trip_update.stop_time_update:
 
             stop_id = str(stop.stop_id)
@@ -137,15 +144,21 @@ def parse_trip_updates(
             if stop_id not in stop_names:
                 continue
 
-            stop_id = str(stop.stop_id)
-
-            if stop_id not in stop_names:
-                continue
+            stop_schedule_relationship = (
+                gtfs_realtime_pb2.TripUpdate.StopTimeUpdate
+                .ScheduleRelationship.Name(
+                    stop.schedule_relationship
+                )
+            )
 
             row = {
                 "observation_timestamp": observation_timestamp,
                 "trip_id": trip_id,
                 "start_date": trip.start_date,
+                "trip_schedule_relationship":
+                    trip_schedule_relationship,
+                "stop_schedule_relationship":
+                    stop_schedule_relationship,
                 "line": info["line"],
                 "agency_id": info["agency_id"],
                 "stop_id": stop_id,

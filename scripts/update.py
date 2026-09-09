@@ -8,7 +8,8 @@ from mvv_delay_tracker.plotting import generate_plot
 
 
 DATA_PATH = "data/mvv_realtime.parquet"
-PLOT_PATH = "docs/munich_delays.png"
+MAP_PLOT_PATH = "docs/munich_delays.png"
+STATISTICS_PLOT_PATH = "docs/munich_delay_statistics.png"
 
 
 def main():
@@ -35,16 +36,19 @@ def main():
 
     print(f"Updated observations: {len(updated_data)}")
 
+    print("Saving dataset...")
+
     save_realtime_data(
         updated_data,
         DATA_PATH,
     )
 
-    print("Generating delay map...")
+    print("Generating delay plots...")
 
     generate_plot(
         data_path=DATA_PATH,
-        output_path=PLOT_PATH,
+        map_output_path=MAP_PLOT_PATH,
+        statistics_output_path=STATISTICS_PLOT_PATH,
     )
 
     print("Pipeline finished successfully.")
