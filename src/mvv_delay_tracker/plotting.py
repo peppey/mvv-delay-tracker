@@ -52,10 +52,11 @@ def filter_observed_after_arrival(
     delay_df
 ):
     """
-    Keep only observations where observation_timestamp
-    is later than arrival_time.
+    Keep observations where observation_timestamp is later than
+    arrival_time.
 
-    Rows with missing timestamps are removed.
+    SKIPPED stop visits are always kept, even if arrival_time
+    is missing.
     """
 
     df = delay_df.copy()
@@ -70,16 +71,22 @@ def filter_observed_after_arrival(
         errors="coerce"
     )
 
-    df = df.dropna(
-        subset=[
-            "observation_timestamp",
-            "arrival_time"
-        ]
+    skipped_mask = (
+        df["stop_schedule_relationship"] == "SKIPPED"
+    )
+
+    observed_after_arrival_mask = (
+        df["observation_timestamp"]
+        > df["arrival_time"]
+    )
+
+    keep_mask = (
+        skipped_mask
+        | observed_after_arrival_mask
     )
 
     df = df[
-        df["observation_timestamp"]
-        > df["arrival_time"]
+        keep_mask
     ].copy()
 
     return df
@@ -374,7 +381,6 @@ def mark_maximum_delay_station(
         annotation_clip=False,
         zorder=4,
         color="#607D8B"
-
     )
 
 
@@ -574,10 +580,74 @@ def calculate_delay_statistics(
     )
 
     # --------------------------------------------------------
-    # Number of departures
+    # Number of observations
     # --------------------------------------------------------
 
     number_of_departures = len(df)
+
+    # --------------------------------------------------------
+    # Number of unique trips
+    # --------------------------------------------------------
+
+    trip_columns = [
+        "trip_id",
+        "start_date"
+    ]
+
+    available_trip_columns = [
+        column
+        for column in trip_columns
+        if column in df.columns
+    ]
+
+    number_of_trips = (
+        df[available_trip_columns]
+        .drop_duplicates()
+        .shape[0]
+    )
+
+    # --------------------------------------------------------
+    # Percentage of skipped stop visits
+    # --------------------------------------------------------
+
+    percentage_skipped_stops = 0.0
+
+    if "stop_schedule_relationship" in delay_df.columns:
+        # Only SCHEDULED and SKIPPED are included
+        # in the denominator.
+        relevant_stop_visits = (
+            delay_df[
+                delay_df[
+                    "stop_schedule_relationship"
+                ].isin(
+                    [
+                        "SCHEDULED",
+                        "SKIPPED"
+                    ]
+                )
+            ]
+        )
+
+        number_of_skipped_stops = len(relevant_stop_visits[
+                relevant_stop_visits[
+                    "stop_schedule_relationship"
+                ] == "SKIPPED"
+            ].index
+        )
+
+        number_of_relevant_stops = (
+            len(
+                relevant_stop_visits
+            )
+        )
+
+        if number_of_relevant_stops > 0:
+
+            percentage_skipped_stops = (
+                number_of_skipped_stops
+                / number_of_relevant_stops
+                * 100
+            )
 
     # --------------------------------------------------------
     # Number of lines
@@ -626,8 +696,14 @@ def calculate_delay_statistics(
         "percentage_over_5_minutes":
             percentage_over_5_minutes,
 
+        "percentage_skipped_stops":
+            percentage_skipped_stops,
+
         "number_of_departures":
             number_of_departures,
+
+        "number_of_trips":
+            number_of_trips,
 
         "number_of_lines":
             number_of_lines,
@@ -653,10 +729,6 @@ def create_delay_statistics_plot(
     figure, axis = plt.subplots(
         figsize=(14, 9)
     )
-
-    # --------------------------------------------------------
-    # Background
-    # --------------------------------------------------------
 
     figure.patch.set_facecolor(
         "#FFFFFF"
@@ -862,16 +934,13 @@ def create_delay_statistics_plot(
     add_kpi(
         0.73,
         0.20,
-        "DATENBASIS",
+        "ÜBERSPRUNGENE HALTESTELLENBESUCHE",
         (
-            f'{statistics["number_of_departures"]:,}'
+            f'{statistics["percentage_skipped_stops"]:.1f} %'
         ),
-        (
-            f'{statistics["number_of_stations"]} Stationen · '
-            f'{statistics["number_of_lines"]} Linien'
-        ),
-        accent_color="#455A64",
-        value_size=27
+        "aller Haltestellenbesuche",
+        accent_color="#D32F2F",
+        value_size=25
     )
 
     # --------------------------------------------------------
@@ -881,7 +950,7 @@ def create_delay_statistics_plot(
     figure.text(
         0.5,
         0.035,
-        "Datenbasis: MVV Echtzeitdaten · 2026",
+        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 8.9.26',
         ha="center",
         va="center",
         fontsize=9,
@@ -910,7 +979,7 @@ def generate_plot(
     data_path="data/mvv_realtime.parquet",
     geojson_path="data/munich.geojson",
     stops_path="data/munich_stops.csv",
-    output_path="docs/munich_delays.png",
+    map_output_path="docs/munich_delays.png",
     statistics_output_path="docs/munich_delay_statistics.png",
     line_column="line"
 ):
@@ -988,7 +1057,7 @@ def generate_plot(
     )
 
     # ========================================================
-    # Create map
+    # Create Munich map
     # ========================================================
 
     figure, axis = plt.subplots(
@@ -1005,7 +1074,6 @@ def generate_plot(
         fontweight="bold",
         color="#263238"
     )
-    
 
     plot_munich_boundaries(
         axis,
@@ -1048,7 +1116,7 @@ def generate_plot(
     )
 
     figure.savefig(
-        output_path,
+        map_output_path,
         dpi=70,
         bbox_inches="tight"
     )
@@ -1074,9 +1142,13 @@ def generate_plot(
         output_path=statistics_output_path
     )
 
+    # ========================================================
+    # Print output paths
+    # ========================================================
+
     print(
         f"Map gespeichert unter: "
-        f"{output_path}"
+        f"{map_output_path}"
     )
 
     print(

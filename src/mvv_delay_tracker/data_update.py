@@ -7,26 +7,55 @@ def load_existing_realtime_data(
     """
     Load existing MVV real-time data from a Parquet file.
 
-    If the Parquet file does not exist, return an empty DataFrame
-    with the expected columns.
-
-    If the Parquet file does not exist, return an empty DataFrame
-    with the expected columns.
-
-    Parameters
-    ----------
-    parquet_path : str
-        Path to the existing Parquet file.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Existing MVV real-time data or an empty DataFrame.
-        Existing MVV real-time data or an empty DataFrame.
+    Converts numeric GTFS-RT enum values in the relationship
+    columns to their string names.
     """
 
     try:
-        return pd.read_parquet(parquet_path)
+        existing_df = pd.read_parquet(parquet_path)
+
+        # Convert trip_schedule_relationship
+        if "trip_schedule_relationship" not in existing_df.columns:
+            existing_df["trip_schedule_relationship"] = pd.NA
+
+        else:
+            trip_relationship_mapping = {
+                0: "SCHEDULED",
+                1: "DUPLICATED",
+                2: "CANCELED",
+                3: "ADDED",
+            }
+
+            existing_df["trip_schedule_relationship"] = (
+                existing_df["trip_schedule_relationship"]
+                .map(trip_relationship_mapping)
+                .fillna(
+                    existing_df["trip_schedule_relationship"]
+                )
+                .astype("string")
+            )
+
+        # Convert stop_schedule_relationship
+        if "stop_schedule_relationship" not in existing_df.columns:
+            existing_df["stop_schedule_relationship"] = pd.NA
+
+        else:
+            stop_relationship_mapping = {
+                0: "SCHEDULED",
+                1: "SKIPPED",
+                2: "NO_DATA",
+            }
+
+            existing_df["stop_schedule_relationship"] = (
+                existing_df["stop_schedule_relationship"]
+                .map(stop_relationship_mapping)
+                .fillna(
+                    existing_df["stop_schedule_relationship"]
+                )
+                .astype("string")
+            )
+
+        return existing_df
 
     except FileNotFoundError:
         return pd.DataFrame(
@@ -34,6 +63,8 @@ def load_existing_realtime_data(
                 "observation_timestamp",
                 "trip_id",
                 "start_date",
+                "trip_schedule_relationship",
+                "stop_schedule_relationship",
                 "line",
                 "agency_id",
                 "stop_id",
@@ -54,20 +85,49 @@ def update_realtime_data(
     """
     Add new real-time data and keep the latest
     observation for each trip and stop.
-
-    Parameters
-    ----------
-    existing_df : pandas.DataFrame
-        Previously stored MVV real-time data.
-
-    new_df : pandas.DataFrame
-        Newly retrieved MVV real-time data.
-
-    Returns
-    -------
-    pandas.DataFrame
-        Updated MVV real-time data.
     """
+
+    # Make sure trip_schedule_relationship exists
+    if "trip_schedule_relationship" not in existing_df.columns:
+        existing_df = existing_df.copy()
+        existing_df["trip_schedule_relationship"] = pd.NA
+
+    if "trip_schedule_relationship" not in new_df.columns:
+        new_df = new_df.copy()
+        new_df["trip_schedule_relationship"] = pd.NA
+
+    # Make sure stop_schedule_relationship exists
+    if "stop_schedule_relationship" not in existing_df.columns:
+        existing_df = existing_df.copy()
+        existing_df["stop_schedule_relationship"] = pd.NA
+
+    if "stop_schedule_relationship" not in new_df.columns:
+        new_df = new_df.copy()
+        new_df["stop_schedule_relationship"] = pd.NA
+
+    existing_df = existing_df.copy()
+    new_df = new_df.copy()
+
+    # Make sure both relationship columns have the same type
+    existing_df["trip_schedule_relationship"] = (
+        existing_df["trip_schedule_relationship"]
+        .astype("string")
+    )
+
+    new_df["trip_schedule_relationship"] = (
+        new_df["trip_schedule_relationship"]
+        .astype("string")
+    )
+
+    existing_df["stop_schedule_relationship"] = (
+        existing_df["stop_schedule_relationship"]
+        .astype("string")
+    )
+
+    new_df["stop_schedule_relationship"] = (
+        new_df["stop_schedule_relationship"]
+        .astype("string")
+    )
 
     combined_df = pd.concat(
         [
