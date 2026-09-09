@@ -333,6 +333,9 @@ def mark_maximum_delay_station(
     """
     Mark and label the two stations with the highest
     average delay.
+
+    The annotations are placed at different positions
+    to avoid overlaps between text and arrows.
     """
 
     top_two_stations = (
@@ -344,14 +347,28 @@ def mark_maximum_delay_station(
     )
 
     annotation_positions = [
-        (0.5, 1.04),
-        (0.5, 0.98)
+        (0.25, 1.04),
+        (0.75, 1.04)
     ]
 
-    for (_, station), (text_x, text_y) in zip(
+    connection_styles = [
+        "arc3,rad=0.15",
+        "arc3,rad=-0.15"
+    ]
+
+    for (
+        (_, station),
+        (text_x, text_y),
+        connection_style
+    ) in zip(
         top_two_stations.iterrows(),
-        annotation_positions
+        annotation_positions,
+        connection_styles
     ):
+
+        # ----------------------------------------------------
+        # Mark station
+        # ----------------------------------------------------
 
         ax.scatter(
             station["utm_x"],
@@ -363,12 +380,20 @@ def mark_maximum_delay_station(
             zorder=3,
         )
 
+        # ----------------------------------------------------
+        # Annotation text
+        # ----------------------------------------------------
+
         annotation_text = (
             f'{station["stop_name"]}: '
             f'Durchschnittlich '
             f'{station["delay_minutes"]:.1f} '
             f'Minuten Verspätung'
         )
+
+        # ----------------------------------------------------
+        # Annotation
+        # ----------------------------------------------------
 
         ax.annotate(
             annotation_text,
@@ -388,7 +413,7 @@ def mark_maximum_delay_station(
             fontweight="normal",
             arrowprops={
                 "arrowstyle": "->",
-                "connectionstyle": "arc3,rad=0.1",
+                "connectionstyle": connection_style,
                 "linewidth": 1.5,
                 "alpha": 0.45,
             },
@@ -1109,7 +1134,7 @@ def generate_plot(
         color="#546E7A",
         rotation=90,
     )
-    
+
     plot_munich_boundaries(
         axis,
         munich_map
