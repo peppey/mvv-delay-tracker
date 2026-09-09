@@ -6,6 +6,10 @@ import pandas as pd
 from mvv_delay_tracker.geographic import wgs84_to_utm32
 
 
+# ============================================================
+# LOAD DATA
+# ============================================================
+
 def load_data(
     geojson_path="data/munich.geojson",
     parquet_path="data/mvv_realtime.parquet"
@@ -33,17 +37,23 @@ def load_data(
     with open(geojson_path, "r") as file:
         munich_map = json.load(file)
 
-    delay_df = pd.read_parquet(parquet_path)
+    delay_df = pd.read_parquet(
+        parquet_path
+    )
 
     return munich_map, delay_df
 
+
+# ============================================================
+# FILTER OBSERVATIONS
+# ============================================================
 
 def filter_observed_after_arrival(
     delay_df
 ):
     """
-    Keep only observations where the observation timestamp
-    is later than the scheduled arrival time.
+    Keep only observations where observation_timestamp
+    is later than arrival_time.
 
     Rows with missing timestamps are removed.
     """
@@ -75,25 +85,29 @@ def filter_observed_after_arrival(
     return df
 
 
+# ============================================================
+# STATION DELAYS
+# ============================================================
+
 def calculate_average_station_delay(
     delay_df
 ):
     """
     Calculate average departure delay for each station.
+
+    Stations are grouped only by stop_name.
     """
 
     station_delay = (
         delay_df
         .dropna(
             subset=[
-                "departure_delay"
+                "departure_delay",
+                "stop_name"
             ]
         )
         .groupby(
-            [
-                "stop_id",
-                "stop_name"
-            ],
+            "stop_name",
             as_index=False
         )["departure_delay"]
         .mean()
@@ -110,6 +124,10 @@ def calculate_average_station_delay(
 
     return station_delay
 
+
+# ============================================================
+# STOP COORDINATES
+# ============================================================
 
 def load_stop_coordinates(
     stops_path="data/munich_stops.csv"
@@ -144,15 +162,36 @@ def merge_station_delays_with_coordinates(
     stops_df
 ):
     """
-    Merge station delays with stop coordinates.
+    Merge station delay data with stop coordinates.
+
+    Since station delays are grouped only by stop_name,
+    coordinates are also aggregated by stop_name.
     """
 
+    stop_coordinates = (
+        stops_df
+        .dropna(
+            subset=[
+                "stop_name",
+                "stop_lat",
+                "stop_lon"
+            ]
+        )
+        .groupby(
+            "stop_name",
+            as_index=False
+        )[
+            [
+                "stop_lat",
+                "stop_lon"
+            ]
+        ]
+        .mean()
+    )
+
     station_delay_df = station_delay_df.merge(
-        stops_df,
-        on=[
-            "stop_id",
-            "stop_name"
-        ],
+        stop_coordinates,
+        on="stop_name",
         how="left"
     )
 
@@ -165,6 +204,10 @@ def merge_station_delays_with_coordinates(
 
     return station_delay_df
 
+
+# ============================================================
+# UTM COORDINATES
+# ============================================================
 
 def add_utm_coordinates(
     station_delay_df
@@ -195,6 +238,10 @@ def add_utm_coordinates(
 
     return station_delay_df
 
+
+# ============================================================
+# MUNICH BOUNDARIES
+# ============================================================
 
 def plot_munich_boundaries(
     ax,
@@ -244,6 +291,10 @@ def plot_munich_boundaries(
                 )
 
 
+# ============================================================
+# STATION DELAY PLOT
+# ============================================================
+
 def plot_station_delays(
     ax,
     station_delay_df
@@ -263,6 +314,10 @@ def plot_station_delays(
 
     return scatter
 
+
+# ============================================================
+# MAXIMUM STATION
+# ============================================================
 
 def mark_maximum_delay_station(
     ax,
@@ -290,7 +345,7 @@ def mark_maximum_delay_station(
     annotation_text = (
         f'{maximum_delay_station["stop_name"]}: '
         f'Durchschnittlich '
-        f'{maximum_delay_station["delay_minutes"]:.0f} '
+        f'{maximum_delay_station["delay_minutes"]:.1f} '
         f'Minuten Verspätung'
     )
 
@@ -321,6 +376,10 @@ def mark_maximum_delay_station(
     )
 
 
+# ============================================================
+# PLOT CONFIGURATION
+# ============================================================
+
 def configure_munich_delay_plot(
     ax
 ):
@@ -346,8 +405,7 @@ def calculate_delay_statistics(
     Calculate key statistics for the Munich public transport
     delay report.
 
-    NaN values in departure_delay are ignored and are not
-    interpreted as zero delay.
+    NaN values in departure_delay are ignored.
 
     The input DataFrame is assumed to already contain only
     observations where observation_timestamp is later than
@@ -578,7 +636,7 @@ def calculate_delay_statistics(
 
 
 # ============================================================
-# STATISTICS REPORT PLOT
+# STATISTICS REPORT
 # ============================================================
 
 def create_delay_statistics_plot(
@@ -599,11 +657,11 @@ def create_delay_statistics_plot(
     # --------------------------------------------------------
 
     figure.patch.set_facecolor(
-        "#F5F7FA"
+        "#FFFFFF"
     )
 
     axis.set_facecolor(
-        "#F5F7FA"
+        "#FFFFFF"
     )
 
     axis.axis("off")
@@ -719,7 +777,7 @@ def create_delay_statistics_plot(
             )
 
     # ========================================================
-    # Row 1
+    # ROW 1
     # ========================================================
 
     add_kpi(
@@ -754,7 +812,7 @@ def create_delay_statistics_plot(
     )
 
     # ========================================================
-    # Row 2
+    # ROW 2
     # ========================================================
 
     add_kpi(
@@ -784,7 +842,7 @@ def create_delay_statistics_plot(
     )
 
     # ========================================================
-    # Row 3
+    # ROW 3
     # ========================================================
 
     add_kpi(
@@ -874,12 +932,21 @@ def generate_plot(
     # Filter observations
     # ========================================================
 
+    original_number_of_rows = len(
+        delay_df
+    )
+
     delay_df = filter_observed_after_arrival(
         delay_df
     )
 
     print(
-        f"Verwendete Beobachtungen: "
+        f"Originale Beobachtungen: "
+        f"{original_number_of_rows:,}"
+    )
+
+    print(
+        f"Beobachtungen nach Filter: "
         f"{len(delay_df):,}"
     )
 
