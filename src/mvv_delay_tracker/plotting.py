@@ -38,16 +38,62 @@ def load_data(
     return munich_map, delay_df
 
 
-def calculate_average_station_delay(delay_df):
+def filter_observed_after_arrival(
+    delay_df
+):
+    """
+    Keep only observations where the observation timestamp
+    is later than the scheduled arrival time.
+
+    Rows with missing timestamps are removed.
+    """
+
+    df = delay_df.copy()
+
+    df["observation_timestamp"] = pd.to_datetime(
+        df["observation_timestamp"],
+        errors="coerce"
+    )
+
+    df["arrival_time"] = pd.to_datetime(
+        df["arrival_time"],
+        errors="coerce"
+    )
+
+    df = df.dropna(
+        subset=[
+            "observation_timestamp",
+            "arrival_time"
+        ]
+    )
+
+    df = df[
+        df["observation_timestamp"]
+        > df["arrival_time"]
+    ].copy()
+
+    return df
+
+
+def calculate_average_station_delay(
+    delay_df
+):
     """
     Calculate average departure delay for each station.
     """
 
     station_delay = (
         delay_df
-        .dropna(subset=["departure_delay"])
+        .dropna(
+            subset=[
+                "departure_delay"
+            ]
+        )
         .groupby(
-            ["stop_id", "stop_name"],
+            [
+                "stop_id",
+                "stop_name"
+            ],
             as_index=False
         )["departure_delay"]
         .mean()
@@ -72,7 +118,9 @@ def load_stop_coordinates(
     Load stop information and coordinates.
     """
 
-    stops_df = pd.read_csv(stops_path)
+    stops_df = pd.read_csv(
+        stops_path
+    )
 
     stops_df["stop_id"] = (
         stops_df["stop_id"]
@@ -162,14 +210,17 @@ def plot_munich_boundaries(
         geometry_type = geometry["type"]
 
         if geometry_type == "Polygon":
+
             polygons = [
                 geometry["coordinates"]
             ]
 
         elif geometry_type == "MultiPolygon":
+
             polygons = geometry["coordinates"]
 
         else:
+
             continue
 
         for polygon in polygons:
@@ -289,7 +340,7 @@ def configure_munich_delay_plot(
 def calculate_delay_statistics(
     delay_df,
     line_column="line",
-    datetime_column="departure_time"
+    datetime_column="observation_timestamp"
 ):
     """
     Calculate key statistics for the Munich public transport
@@ -297,6 +348,10 @@ def calculate_delay_statistics(
 
     NaN values in departure_delay are ignored and are not
     interpreted as zero delay.
+
+    The input DataFrame is assumed to already contain only
+    observations where observation_timestamp is later than
+    arrival_time.
     """
 
     df = delay_df.copy()
@@ -318,6 +373,7 @@ def calculate_delay_statistics(
     ]
 
     if missing_columns:
+
         raise ValueError(
             "Folgende benötigte Spalten fehlen: "
             f"{missing_columns}\n\n"
@@ -330,7 +386,9 @@ def calculate_delay_statistics(
     # --------------------------------------------------------
 
     df = df.dropna(
-        subset=["departure_delay"]
+        subset=[
+            "departure_delay"
+        ]
     )
 
     # --------------------------------------------------------
@@ -369,14 +427,10 @@ def calculate_delay_statistics(
 
     if datetime_column in df.columns:
 
-        timestamps = pd.to_datetime(
-            df[datetime_column],
+        timestamp = pd.to_datetime(
+            maximum_delay[datetime_column],
             errors="coerce"
         )
-
-        timestamp = timestamps.loc[
-            maximum_delay.name
-        ]
 
         if pd.notna(timestamp):
 
@@ -398,10 +452,18 @@ def calculate_delay_statistics(
 
     line_statistics = (
         df
-        .dropna(subset=[line_column])
-        .groupby(line_column)["delay_minutes"]
+        .dropna(
+            subset=[
+                line_column
+            ]
+        )
+        .groupby(
+            line_column
+        )["delay_minutes"]
         .mean()
-        .sort_values(ascending=False)
+        .sort_values(
+            ascending=False
+        )
     )
 
     most_delayed_line = (
@@ -418,10 +480,18 @@ def calculate_delay_statistics(
 
     station_statistics = (
         df
-        .dropna(subset=["stop_name"])
-        .groupby("stop_name")["delay_minutes"]
+        .dropna(
+            subset=[
+                "stop_name"
+            ]
+        )
+        .groupby(
+            "stop_name"
+        )["delay_minutes"]
         .mean()
-        .sort_values(ascending=False)
+        .sort_values(
+            ascending=False
+        )
     )
 
     most_delayed_station = (
@@ -528,8 +598,13 @@ def create_delay_statistics_plot(
     # Background
     # --------------------------------------------------------
 
-    figure.patch.set_facecolor("#F5F7FA")
-    axis.set_facecolor("#F5F7FA")
+    figure.patch.set_facecolor(
+        "#F5F7FA"
+    )
+
+    axis.set_facecolor(
+        "#F5F7FA"
+    )
 
     axis.axis("off")
 
@@ -575,7 +650,6 @@ def create_delay_statistics_plot(
         Add one colored KPI card.
         """
 
-        # Card background
         axis.text(
             x,
             y,
@@ -592,7 +666,6 @@ def create_delay_statistics_plot(
             )
         )
 
-        # Accent line
         axis.plot(
             [
                 x - 0.15,
@@ -609,7 +682,6 @@ def create_delay_statistics_plot(
             clip_on=False
         )
 
-        # KPI title
         axis.text(
             x,
             y + 0.025,
@@ -621,7 +693,6 @@ def create_delay_statistics_plot(
             color="#607D8B"
         )
 
-        # Main value
         axis.text(
             x,
             y - 0.035,
@@ -634,7 +705,6 @@ def create_delay_statistics_plot(
             color=accent_color
         )
 
-        # Description
         if description:
 
             axis.text(
@@ -773,7 +843,7 @@ def create_delay_statistics_plot(
 
 
 # ============================================================
-# MAIN PLOT
+# MAIN FUNCTION
 # ============================================================
 
 def generate_plot(
@@ -782,16 +852,13 @@ def generate_plot(
     stops_path="data/munich_stops.csv",
     output_path="docs/munich_delays.png",
     statistics_output_path="docs/munich_delay_statistics.png",
-    line_column="line",
-    datetime_column="departure_time"
+    line_column="line"
 ):
     """
     Generate and save the Munich delay map and statistics report.
 
-    This function combines the complete plotting pipeline:
-    loading data, calculating station delays, adding coordinates,
-    generating the delay map, calculating key statistics, and
-    generating the statistics report.
+    Only observations where observation_timestamp is later than
+    arrival_time are included in the analysis.
     """
 
     # ========================================================
@@ -801,6 +868,19 @@ def generate_plot(
     munich_map, delay_df = load_data(
         geojson_path=geojson_path,
         parquet_path=data_path
+    )
+
+    # ========================================================
+    # Filter observations
+    # ========================================================
+
+    delay_df = filter_observed_after_arrival(
+        delay_df
+    )
+
+    print(
+        f"Verwendete Beobachtungen: "
+        f"{len(delay_df):,}"
     )
 
     # ========================================================
@@ -885,7 +965,12 @@ def generate_plot(
     )
 
     figure.tight_layout(
-        rect=[0, 0, 1, 0.94]
+        rect=[
+            0,
+            0,
+            1,
+            0.94
+        ]
     )
 
     figure.savefig(
@@ -903,7 +988,7 @@ def generate_plot(
     statistics = calculate_delay_statistics(
         delay_df,
         line_column=line_column,
-        datetime_column=datetime_column
+        datetime_column="observation_timestamp"
     )
 
     # ========================================================
@@ -913,4 +998,14 @@ def generate_plot(
     create_delay_statistics_plot(
         statistics,
         output_path=statistics_output_path
+    )
+
+    print(
+        f"Map gespeichert unter: "
+        f"{output_path}"
+    )
+
+    print(
+        f"Statistik-Report gespeichert unter: "
+        f"{statistics_output_path}"
     )
