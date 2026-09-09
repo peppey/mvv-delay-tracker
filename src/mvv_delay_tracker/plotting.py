@@ -363,7 +363,7 @@ def mark_maximum_delay_station(
         textcoords="axes fraction",
         ha="center",
         va="bottom",
-        fontsize=10,
+        fontsize=12,
         fontweight="normal",
         arrowprops={
             "arrowstyle": "->",
@@ -373,6 +373,8 @@ def mark_maximum_delay_station(
         },
         annotation_clip=False,
         zorder=4,
+        color="#607D8B"
+
     )
 
 
@@ -673,7 +675,7 @@ def create_delay_statistics_plot(
     figure.text(
         0.5,
         0.94,
-        "MVV DELAY REPORT 2026",
+        "MVV VERSPÄTUNGEN 2026",
         ha="center",
         va="center",
         fontsize=24,
@@ -993,12 +995,17 @@ def generate_plot(
         figsize=(12, 12)
     )
 
-    figure.suptitle(
-        "ÖPNV-Verspätungen in München",
-        fontsize=18,
-        fontweight="normal",
-        y=0.98
+    figure.text(
+        0.5,
+        0.94,
+        "MVV VERSPÄTUNGEN 2026",
+        ha="center",
+        va="center",
+        fontsize=24,
+        fontweight="bold",
+        color="#263238"
     )
+    
 
     plot_munich_boundaries(
         axis,
