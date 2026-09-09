@@ -2,9 +2,12 @@
 
 This project is creating a publicly available dataset of MVV delays per station by running a cron job regularly to examine real-time departure data and compare scheduled departure times with actual departure times.
 
-## Delay Map
+## Delays
 
 ![Delays in Munich](docs/munich_delays.png)
+
+![Delays Report 2025](docs/munich_delay_statistics.png)
+
 
 
 ## Data
