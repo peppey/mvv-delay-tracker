@@ -314,7 +314,7 @@ def plot_station_delays(
         station_delay_df["utm_x"],
         station_delay_df["utm_y"],
         c=station_delay_df["delay_minutes"],
-        cmap="RdYlGn_r",
+        cmap="PuBuGn",
         s=35,
         alpha=0.85,
     )
@@ -323,7 +323,7 @@ def plot_station_delays(
 
 
 # ============================================================
-# MAXIMUM STATION
+# TOP TWO STATIONS
 # ============================================================
 
 def mark_maximum_delay_station(
@@ -331,57 +331,71 @@ def mark_maximum_delay_station(
     station_delay_df
 ):
     """
-    Mark and label the station with the highest
+    Mark and label the two stations with the highest
     average delay.
     """
 
-    maximum_delay_station = station_delay_df.loc[
-        station_delay_df["delay_minutes"].idxmax()
+    top_two_stations = (
+        station_delay_df
+        .nlargest(
+            2,
+            "delay_minutes"
+        )
+    )
+
+    annotation_positions = [
+        (0.5, 1.04),
+        (0.5, 0.98)
     ]
 
-    ax.scatter(
-        maximum_delay_station["utm_x"],
-        maximum_delay_station["utm_y"],
-        s=120,
-        facecolors="none",
-        edgecolors="black",
-        linewidths=2,
-        zorder=3,
-    )
+    for (_, station), (text_x, text_y) in zip(
+        top_two_stations.iterrows(),
+        annotation_positions
+    ):
 
-    annotation_text = (
-        f'{maximum_delay_station["stop_name"]}: '
-        f'Durchschnittlich '
-        f'{maximum_delay_station["delay_minutes"]:.1f} '
-        f'Minuten Verspätung'
-    )
+        ax.scatter(
+            station["utm_x"],
+            station["utm_y"],
+            s=120,
+            facecolors="none",
+            edgecolors="black",
+            linewidths=2,
+            zorder=3,
+        )
 
-    ax.annotate(
-        annotation_text,
-        xy=(
-            maximum_delay_station["utm_x"],
-            maximum_delay_station["utm_y"],
-        ),
-        xycoords="data",
-        xytext=(
-            0.5,
-            1.04
-        ),
-        textcoords="axes fraction",
-        ha="center",
-        va="bottom",
-        fontsize=12,
-        fontweight="normal",
-        arrowprops={
-            "arrowstyle": "->",
-            "connectionstyle": "arc3,rad=0.1",
-            "linewidth": 1.5,
-            "alpha": 0.45,
-        },
-        annotation_clip=False,
-        zorder=4,
-        color="#607D8B"
-    )
+        annotation_text = (
+            f'{station["stop_name"]}: '
+            f'Durchschnittlich '
+            f'{station["delay_minutes"]:.1f} '
+            f'Minuten Verspätung'
+        )
+
+        ax.annotate(
+            annotation_text,
+            xy=(
+                station["utm_x"],
+                station["utm_y"],
+            ),
+            xycoords="data",
+            xytext=(
+                text_x,
+                text_y
+            ),
+            textcoords="axes fraction",
+            ha="center",
+            va="bottom",
+            fontsize=12,
+            fontweight="normal",
+            arrowprops={
+                "arrowstyle": "->",
+                "connectionstyle": "arc3,rad=0.1",
+                "linewidth": 1.5,
+                "alpha": 0.45,
+            },
+            annotation_clip=False,
+            zorder=4,
+            color="#546E7A"
+        )
 
 
 # ============================================================
@@ -613,8 +627,7 @@ def calculate_delay_statistics(
     percentage_skipped_stops = 0.0
 
     if "stop_schedule_relationship" in delay_df.columns:
-        # Only SCHEDULED and SKIPPED are included
-        # in the denominator.
+
         relevant_stop_visits = (
             delay_df[
                 delay_df[
@@ -628,7 +641,8 @@ def calculate_delay_statistics(
             ]
         )
 
-        number_of_skipped_stops = len(relevant_stop_visits[
+        number_of_skipped_stops = len(
+            relevant_stop_visits[
                 relevant_stop_visits[
                     "stop_schedule_relationship"
                 ] == "SKIPPED"
@@ -762,7 +776,7 @@ def create_delay_statistics_plot(
         ha="center",
         va="center",
         fontsize=12,
-        color="#607D8B"
+        color="#546E7A"
     )
 
     # --------------------------------------------------------
@@ -822,7 +836,7 @@ def create_delay_statistics_plot(
             ha="center",
             va="center",
             fontsize=11,
-            color="#607D8B"
+            color="#546E7A"
         )
 
         axis.text(
@@ -866,7 +880,7 @@ def create_delay_statistics_plot(
             f'{statistics["maximum_delay_line"]} · '
             f'{statistics["maximum_delay_date"]}'
         ),
-        accent_color="#D32F2F",
+        accent_color="#00695C",
         value_size=27
     )
 
@@ -881,7 +895,7 @@ def create_delay_statistics_plot(
             f'Ø {statistics["most_delayed_line_delay"]:.1f} min '
             f'Verspätung'
         ),
-        accent_color="#7B1FA2",
+        accent_color="#1976D2",
         value_size=27
     )
 
@@ -899,7 +913,7 @@ def create_delay_statistics_plot(
         (
             f'Ø {statistics["most_delayed_station_delay"]:.1f} min'
         ),
-        accent_color="#E65100",
+        accent_color="#00897B",
         value_size=21
     )
 
@@ -939,7 +953,7 @@ def create_delay_statistics_plot(
             f'{statistics["percentage_skipped_stops"]:.1f} %'
         ),
         "aller Haltestellenbesuche",
-        accent_color="#D32F2F",
+        accent_color="#00695C",
         value_size=25
     )
 
@@ -1022,6 +1036,16 @@ def generate_plot(
     )
 
     # ========================================================
+    # Calculate statistics
+    # ========================================================
+
+    statistics = calculate_delay_statistics(
+        delay_df,
+        line_column=line_column,
+        datetime_column="observation_timestamp"
+    )
+
+    # ========================================================
     # Calculate station delays
     # ========================================================
 
@@ -1075,6 +1099,17 @@ def generate_plot(
         color="#263238"
     )
 
+    figure.text(
+        0.02,
+        0.5,
+        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 8.9.26',
+        ha="center",
+        va="center",
+        fontsize=9,
+        color="#546E7A",
+        rotation=90,
+    )
+    
     plot_munich_boundaries(
         axis,
         munich_map
@@ -1122,16 +1157,6 @@ def generate_plot(
     )
 
     plt.close(figure)
-
-    # ========================================================
-    # Calculate statistics
-    # ========================================================
-
-    statistics = calculate_delay_statistics(
-        delay_df,
-        line_column=line_column,
-        datetime_column="observation_timestamp"
-    )
 
     # ========================================================
     # Create statistics report
