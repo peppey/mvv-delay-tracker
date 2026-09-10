@@ -9,6 +9,7 @@ from mvv_delay_tracker.static_data import (
 
 
 def main() -> None:
+    """Check the remote GTFS files and publish the GitHub Actions result."""
     remote_files = download_static_files()
     changed_files = find_changed_files(remote_files)
 

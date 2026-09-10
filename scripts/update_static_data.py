@@ -7,6 +7,7 @@ from mvv_delay_tracker.static_data import (
 
 
 def main() -> None:
+    """Download and write changed static GTFS files."""
     remote_files = download_static_files()
     changed_files = update_static_files(remote_files)
 

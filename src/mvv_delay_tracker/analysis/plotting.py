@@ -1,6 +1,9 @@
 import json
+from typing import Any
 
 import matplotlib.pyplot as plt
+from matplotlib.axes import Axes
+from matplotlib.collections import PathCollection
 import pandas as pd
 
 from mvv_delay_tracker.analysis.geographic import wgs84_to_utm32
@@ -11,9 +14,9 @@ from mvv_delay_tracker.analysis.geographic import wgs84_to_utm32
 # ============================================================
 
 def load_data(
-    geojson_path="data/static/munich.geojson",
-    parquet_path="data/realtime/mvv_realtime.parquet"
-):
+    geojson_path: str = "data/static/munich.geojson",
+    parquet_path: str = "data/realtime/mvv_realtime.parquet",
+) -> tuple[dict[str, Any], pd.DataFrame]:
     """
     Load Munich GeoJSON boundary data and MVV real-time data.
 
@@ -49,8 +52,8 @@ def load_data(
 # ============================================================
 
 def filter_observed_after_arrival(
-    delay_df
-):
+    delay_df: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Keep observations where observation_timestamp is later than
     arrival_time.
@@ -97,8 +100,8 @@ def filter_observed_after_arrival(
 # ============================================================
 
 def calculate_average_station_delay(
-    delay_df
-):
+    delay_df: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Calculate average departure delay for each station.
 
@@ -137,8 +140,8 @@ def calculate_average_station_delay(
 # ============================================================
 
 def load_stop_coordinates(
-    stops_path="data/static/munich_stops.csv"
-):
+    stops_path: str = "data/static/munich_stops.csv",
+) -> pd.DataFrame:
     """
     Load stop information and coordinates.
     """
@@ -165,9 +168,9 @@ def load_stop_coordinates(
 
 
 def merge_station_delays_with_coordinates(
-    station_delay_df,
-    stops_df
-):
+    station_delay_df: pd.DataFrame,
+    stops_df: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Merge station delay data with stop coordinates.
 
@@ -217,8 +220,8 @@ def merge_station_delays_with_coordinates(
 # ============================================================
 
 def add_utm_coordinates(
-    station_delay_df
-):
+    station_delay_df: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Convert WGS84 station coordinates to UTM Zone 32N.
     """
@@ -251,9 +254,9 @@ def add_utm_coordinates(
 # ============================================================
 
 def plot_munich_boundaries(
-    ax,
-    munich_geojson
-):
+    ax: Axes,
+    munich_geojson: dict[str, Any],
+) -> None:
     """
     Plot Munich administrative boundaries.
     """
@@ -303,9 +306,9 @@ def plot_munich_boundaries(
 # ============================================================
 
 def plot_station_delays(
-    ax,
-    station_delay_df
-):
+    ax: Axes,
+    station_delay_df: pd.DataFrame,
+) -> PathCollection:
     """
     Plot average station delays as a scatter plot.
     """
@@ -327,9 +330,9 @@ def plot_station_delays(
 # ============================================================
 
 def mark_maximum_delay_station(
-    ax,
-    station_delay_df
-):
+    ax: Axes,
+    station_delay_df: pd.DataFrame,
+) -> None:
     """
     Mark and label the two stations with the highest
     average delay.
@@ -428,8 +431,8 @@ def mark_maximum_delay_station(
 # ============================================================
 
 def configure_munich_delay_plot(
-    ax
-):
+    ax: Axes,
+) -> None:
     """
     Configure aspect ratio and axis visibility.
     """
@@ -444,10 +447,10 @@ def configure_munich_delay_plot(
 # ============================================================
 
 def calculate_delay_statistics(
-    delay_df,
-    line_column="line",
-    datetime_column="observation_timestamp"
-):
+    delay_df: pd.DataFrame,
+    line_column: str = "line",
+    datetime_column: str = "observation_timestamp",
+) -> dict[str, Any]:
     """
     Calculate key statistics for the Munich public transport
     delay report.
@@ -757,9 +760,9 @@ def calculate_delay_statistics(
 # ============================================================
 
 def create_delay_statistics_plot(
-    statistics,
-    output_path="docs/munich_delay_statistics.png"
-):
+    statistics: dict[str, Any],
+    output_path: str = "docs/munich_delay_statistics.png",
+) -> None:
     """
     Create a colorful PNG containing key Munich public
     transport delay statistics.
@@ -809,14 +812,14 @@ def create_delay_statistics_plot(
     # --------------------------------------------------------
 
     def add_kpi(
-        x,
-        y,
-        title,
-        value,
-        description="",
-        accent_color="#1976D2",
-        value_size=25
-    ):
+        x: float,
+        y: float,
+        title: str,
+        value: str,
+        description: str = "",
+        accent_color: str = "#1976D2",
+        value_size: int = 25,
+    ) -> None:
         """
         Add one colored KPI card.
         """
@@ -1015,13 +1018,13 @@ def create_delay_statistics_plot(
 # ============================================================
 
 def generate_plot(
-    data_path="data/realtime/mvv_realtime.parquet",
-    geojson_path="data/static/munich.geojson",
-    stops_path="data/static/munich_stops.csv",
-    map_output_path="docs/munich_delays.png",
-    statistics_output_path="docs/munich_delay_statistics.png",
-    line_column="line"
-):
+    data_path: str = "data/realtime/mvv_realtime.parquet",
+    geojson_path: str = "data/static/munich.geojson",
+    stops_path: str = "data/static/munich_stops.csv",
+    map_output_path: str = "docs/munich_delays.png",
+    statistics_output_path: str = "docs/munich_delay_statistics.png",
+    line_column: str = "line",
+) -> None:
     """
     Generate and save the Munich delay map and statistics report.
 

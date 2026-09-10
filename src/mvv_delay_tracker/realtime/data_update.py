@@ -2,8 +2,8 @@ import pandas as pd
 
 
 def load_existing_realtime_data(
-    parquet_path="data/realtime/mvv_realtime.parquet"
-):
+    parquet_path: str = "data/realtime/mvv_realtime.parquet",
+) -> pd.DataFrame:
     """
     Load existing MVV real-time data from a Parquet file.
 
@@ -79,9 +79,9 @@ def load_existing_realtime_data(
 
 
 def update_realtime_data(
-    existing_df,
-    new_df
-):
+    existing_df: pd.DataFrame,
+    new_df: pd.DataFrame,
+) -> pd.DataFrame:
     """
     Add new real-time data and keep the latest
     observation for each trip and stop.
@@ -154,9 +154,9 @@ def update_realtime_data(
 
 
 def save_realtime_data(
-    realtime_df,
-    parquet_path="data/realtime/mvv_realtime.parquet"
-):
+    realtime_df: pd.DataFrame,
+    parquet_path: str = "data/realtime/mvv_realtime.parquet",
+) -> None:
     """
     Save MVV real-time data to a Parquet file.
 
