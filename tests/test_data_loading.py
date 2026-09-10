@@ -3,7 +3,7 @@ import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
 
-from mvv_delay_tracker.data_loading import (
+from mvv_delay_tracker.realtime.data_loading import (
     load_gtfs_realtime_feed,
     preprocess_gtfs,
     parse_trip_updates,
@@ -44,7 +44,7 @@ def test_load_gtfs_realtime_feed_success():
     response.raise_for_status = Mock()
 
     with patch(
-        "mvv_delay_tracker.data_loading.requests.get",
+        "mvv_delay_tracker.realtime.data_loading.requests.get",
         return_value=response,
     ) as mock_get:
 
@@ -65,7 +65,7 @@ def test_load_gtfs_realtime_feed_http_error():
     response.raise_for_status.side_effect = Exception("HTTP error")
 
     with patch(
-        "mvv_delay_tracker.data_loading.requests.get",
+        "mvv_delay_tracker.realtime.data_loading.requests.get",
         return_value=response,
     ):
 
@@ -90,9 +90,12 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
         "stop_name": ["Marienplatz", "Karlsplatz"],
     })
 
-    routes.to_csv(tmp_path / "routes.txt", index=False)
-    trips.to_csv(tmp_path / "trips.txt", index=False)
-    stops.to_csv(tmp_path / "munich_stops.csv", index=False)
+    static_dir = tmp_path / "static"
+    static_dir.mkdir()
+
+    routes.to_csv(static_dir / "routes.txt", index=False)
+    trips.to_csv(static_dir / "trips.txt", index=False)
+    stops.to_csv(static_dir / "munich_stops.csv", index=False)
 
     trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
@@ -137,9 +140,12 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
         "stop_name": ["Test Stop"],
     })
 
-    routes.to_csv(tmp_path / "routes.txt", index=False)
-    trips.to_csv(tmp_path / "trips.txt", index=False)
-    stops.to_csv(tmp_path / "munich_stops.csv", index=False)
+    static_dir = tmp_path / "static"
+    static_dir.mkdir()
+
+    routes.to_csv(static_dir / "routes.txt", index=False)
+    trips.to_csv(static_dir / "trips.txt", index=False)
+    stops.to_csv(static_dir / "munich_stops.csv", index=False)
 
     trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
@@ -175,9 +181,12 @@ def test_preprocess_gtfs_keeps_all_agencies(tmp_path):
         "stop_name": ["Marienplatz"],
     })
 
-    routes.to_csv(tmp_path / "routes.txt", index=False)
-    trips.to_csv(tmp_path / "trips.txt", index=False)
-    stops.to_csv(tmp_path / "munich_stops.csv", index=False)
+    static_dir = tmp_path / "static"
+    static_dir.mkdir()
+
+    routes.to_csv(static_dir / "routes.txt", index=False)
+    trips.to_csv(static_dir / "trips.txt", index=False)
+    stops.to_csv(static_dir / "munich_stops.csv", index=False)
 
     trip_info, _ = preprocess_gtfs(
         data_dir=str(tmp_path),
@@ -417,13 +426,13 @@ def test_load_new_data_calls_pipeline():
     })
 
     with patch(
-        "mvv_delay_tracker.data_loading.load_gtfs_realtime_feed",
+        "mvv_delay_tracker.realtime.data_loading.load_gtfs_realtime_feed",
         return_value=fake_feed,
     ) as mock_load_feed, patch(
-        "mvv_delay_tracker.data_loading.preprocess_gtfs",
+        "mvv_delay_tracker.realtime.data_loading.preprocess_gtfs",
         return_value=(fake_trip_info, fake_stop_names),
     ) as mock_preprocess, patch(
-        "mvv_delay_tracker.data_loading.parse_trip_updates",
+        "mvv_delay_tracker.realtime.data_loading.parse_trip_updates",
         return_value=expected_df,
     ) as mock_parse:
 

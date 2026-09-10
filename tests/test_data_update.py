@@ -1,6 +1,6 @@
 import pandas as pd
 
-from mvv_delay_tracker.data_update import (
+from mvv_delay_tracker.realtime.data_update import (
     load_existing_realtime_data,
     update_realtime_data,
     save_realtime_data,
@@ -11,6 +11,8 @@ EXPECTED_COLUMNS = [
     "observation_timestamp",
     "trip_id",
     "start_date",
+    "trip_schedule_relationship",
+    "stop_schedule_relationship",
     "line",
     "agency_id",
     "stop_id",
@@ -30,6 +32,8 @@ def test_load_existing_realtime_data(tmp_path):
         "observation_timestamp": ["2026-09-09 10:00:00"],
         "trip_id": ["trip_123"],
         "start_date": ["20260909"],
+        "trip_schedule_relationship": [pd.NA],
+        "stop_schedule_relationship": [pd.NA],
         "line": ["S1"],
         "agency_id": ["191"],
         "stop_id": ["1001"],
@@ -45,7 +49,13 @@ def test_load_existing_realtime_data(tmp_path):
 
     result = load_existing_realtime_data(parquet_path)
 
-    pd.testing.assert_frame_equal(result, df)
+    pd.testing.assert_frame_equal(
+        result,
+        df.astype({
+            "trip_schedule_relationship": "string",
+            "stop_schedule_relationship": "string",
+        }),
+    )
 
 
 def test_load_existing_realtime_data_file_not_found(tmp_path):

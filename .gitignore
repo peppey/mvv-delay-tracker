@@ -1,3 +1,7 @@
+.github/copilot-instructions.md
+
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -139,10 +143,10 @@ celerybeat.pid
 # RabbitMQ
 mnesia/
 rabbitmq/
-rabbitmq-data/
+rabbitmq-data/static
 
 # ActiveMQ
-activemq-data/
+activemq-data/static
 
 # SageMath parsed files
 *.sage.py

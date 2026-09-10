@@ -1,13 +1,13 @@
-from mvv_delay_tracker.data_loading import load_new_data
-from mvv_delay_tracker.data_update import (
+from mvv_delay_tracker.realtime.data_loading import load_new_data
+from mvv_delay_tracker.realtime.data_update import (
     load_existing_realtime_data,
     update_realtime_data,
     save_realtime_data,
 )
-from mvv_delay_tracker.plotting import generate_plot
+from mvv_delay_tracker.analysis.plotting import generate_plot
 
 
-DATA_PATH = "data/mvv_realtime.parquet"
+DATA_PATH = "data/realtime/mvv_realtime.parquet"
 MAP_PLOT_PATH = "docs/munich_delays.png"
 STATISTICS_PLOT_PATH = "docs/munich_delay_statistics.png"
 

@@ -2,7 +2,7 @@ import pandas as pd
 
 
 def load_existing_realtime_data(
-    parquet_path="data/mvv_realtime.parquet"
+    parquet_path="data/realtime/mvv_realtime.parquet"
 ):
     """
     Load existing MVV real-time data from a Parquet file.
@@ -155,7 +155,7 @@ def update_realtime_data(
 
 def save_realtime_data(
     realtime_df,
-    parquet_path="data/mvv_realtime.parquet"
+    parquet_path="data/realtime/mvv_realtime.parquet"
 ):
     """
     Save MVV real-time data to a Parquet file.

@@ -49,7 +49,7 @@ def preprocess_gtfs(
     """
 
     routes_df = pd.read_csv(
-        f"{data_dir}/routes.txt",
+        f"{data_dir}/static/routes.txt",
         dtype={
             "route_id": str,
             "agency_id": str,
@@ -57,7 +57,7 @@ def preprocess_gtfs(
     )
 
     trips_df = pd.read_csv(
-        f"{data_dir}/trips.txt",
+        f"{data_dir}/static/trips.txt",
         dtype={
             "trip_id": str,
             "route_id": str,
@@ -65,7 +65,7 @@ def preprocess_gtfs(
     )
 
     stops_df = pd.read_csv(
-        f"{data_dir}/munich_stops.csv",
+        f"{data_dir}/static/munich_stops.csv",
         dtype={
             "stop_id": str,
         },
@@ -185,7 +185,7 @@ def parse_trip_updates(
 
 def load_new_data(
     data_dir="data",
-    munich_geojson_path="munich.geojson",
+    munich_geojson_path="data/static/munich.geojson",
 ):
     """
     Load and process the current MVV real-time data.
