@@ -6,6 +6,10 @@ on:
 
   workflow_dispatch:
 
+concurrency:
+  group: update-mvv-data
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
