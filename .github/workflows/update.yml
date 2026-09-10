@@ -31,14 +31,14 @@ jobs:
         run: uv sync --locked
 
       - name: Update MVV data
-        run: uv run python scripts/update.py
+        run: uv run python scripts/update_parquet.py
 
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add data/mvv_realtime.parquet
+          git add data/realtime/mvv_realtime.parquet
           git add docs/munich_delay_statistics.png
           git add docs/munich_delays.png
 

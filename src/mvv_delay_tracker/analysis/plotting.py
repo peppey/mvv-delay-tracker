@@ -3,7 +3,7 @@ import json
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from mvv_delay_tracker.geographic import wgs84_to_utm32
+from mvv_delay_tracker.analysis.geographic import wgs84_to_utm32
 
 
 # ============================================================
@@ -11,8 +11,8 @@ from mvv_delay_tracker.geographic import wgs84_to_utm32
 # ============================================================
 
 def load_data(
-    geojson_path="data/munich.geojson",
-    parquet_path="data/mvv_realtime.parquet"
+    geojson_path="data/static/munich.geojson",
+    parquet_path="data/realtime/mvv_realtime.parquet"
 ):
     """
     Load Munich GeoJSON boundary data and MVV real-time data.
@@ -137,7 +137,7 @@ def calculate_average_station_delay(
 # ============================================================
 
 def load_stop_coordinates(
-    stops_path="data/munich_stops.csv"
+    stops_path="data/static/munich_stops.csv"
 ):
     """
     Load stop information and coordinates.
@@ -1015,9 +1015,9 @@ def create_delay_statistics_plot(
 # ============================================================
 
 def generate_plot(
-    data_path="data/mvv_realtime.parquet",
-    geojson_path="data/munich.geojson",
-    stops_path="data/munich_stops.csv",
+    data_path="data/realtime/mvv_realtime.parquet",
+    geojson_path="data/static/munich.geojson",
+    stops_path="data/static/munich_stops.csv",
     map_output_path="docs/munich_delays.png",
     statistics_output_path="docs/munich_delay_statistics.png",
     line_column="line"

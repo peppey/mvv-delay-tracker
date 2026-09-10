@@ -139,10 +139,10 @@ celerybeat.pid
 # RabbitMQ
 mnesia/
 rabbitmq/
-rabbitmq-data/
+rabbitmq-data/static
 
 # ActiveMQ
-activemq-data/
+activemq-data/static
 
 # SageMath parsed files
 *.sage.py
