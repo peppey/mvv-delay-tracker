@@ -2,6 +2,7 @@
 data/realtime/mvv_realtime.parquet
 docs/munich_delay_statistics.png
 docs/munich_delays.png
+docs/delay_comparison.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

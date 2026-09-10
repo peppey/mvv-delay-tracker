@@ -10,10 +10,12 @@ import requests
 STATIC_DATA_URL = "https://download.gtfs.de/germany/nv_free/latest.zip"
 STATIC_DATA_DIR = Path("data/static")
 FILES_TO_UPDATE = ("routes.txt", "trips.txt")
+STOPS_FILE = "stops.txt"
 
 
 def download_static_files(
     url: str = STATIC_DATA_URL,
+    include_stops: bool = False,
 ) -> dict[str, bytes]:
     """Download the selected GTFS files from the remote archive."""
     response = requests.get(url, timeout=120)
@@ -26,9 +28,12 @@ def download_static_files(
             for name in archive.namelist()
             if not name.endswith("/")
         }
+        requested_files = FILES_TO_UPDATE + (
+            (STOPS_FILE,) if include_stops else ()
+        )
         missing_files = [
             filename
-            for filename in FILES_TO_UPDATE
+            for filename in requested_files
             if filename not in archive_files
         ]
         if missing_files:
@@ -39,7 +44,7 @@ def download_static_files(
 
         return {
             filename: archive.read(archive_files[filename])
-            for filename in FILES_TO_UPDATE
+            for filename in requested_files
         }
 
 
@@ -50,9 +55,9 @@ def find_changed_files(
     """Return remote files that are missing or differ locally."""
     return [
         filename
-        for filename, content in remote_files.items()
+        for filename in FILES_TO_UPDATE
         if not (data_dir / filename).exists()
-        or (data_dir / filename).read_bytes() != content
+        or (data_dir / filename).read_bytes() != remote_files[filename]
     ]
 
 

@@ -5,7 +5,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 
-from mvv_delay_tracker.static_data import (
+from mvv_delay_tracker.static.static_data import (
     download_static_files,
     find_changed_files,
     update_static_files,
@@ -15,13 +15,15 @@ from mvv_delay_tracker.static_data import (
 def make_archive(
     routes: bytes = b"routes",
     trips: bytes | None = b"trips",
+    stops: bytes | None = None,
 ) -> bytes:
     buffer = BytesIO()
     with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
         archive.writestr("gtfs/routes.txt", routes)
         if trips is not None:
             archive.writestr("gtfs/trips.txt", trips)
-        archive.writestr("gtfs/stops.txt", b"stops")
+        if stops is not None:
+            archive.writestr("gtfs/stops.txt", stops)
     return buffer.getvalue()
 
 
@@ -33,7 +35,7 @@ def test_download_static_files(monkeypatch):
             pass
 
     monkeypatch.setattr(
-        "mvv_delay_tracker.static_data.requests.get",
+        "mvv_delay_tracker.static.static_data.requests.get",
         Mock(return_value=Response()),
     )
 
@@ -51,12 +53,27 @@ def test_download_static_files_rejects_missing_file(monkeypatch):
             pass
 
     monkeypatch.setattr(
-        "mvv_delay_tracker.static_data.requests.get",
+        "mvv_delay_tracker.static.static_data.requests.get",
         Mock(return_value=Response()),
     )
 
     with pytest.raises(ValueError, match="trips.txt"):
         download_static_files()
+
+
+def test_download_static_files_can_include_stops(monkeypatch):
+    class Response:
+        content = make_archive(stops=b"stops")
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(
+        "mvv_delay_tracker.static.static_data.requests.get",
+        Mock(return_value=Response()),
+    )
+
+    assert download_static_files(include_stops=True)["stops.txt"] == b"stops"
 
 
 def test_find_changed_files(tmp_path: Path):
