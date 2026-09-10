@@ -99,7 +99,6 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
 
     trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
-        munich_geojson_path="unused.geojson",
     )
 
     assert trip_info == {
@@ -149,7 +148,6 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
 
     trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
-        munich_geojson_path="unused.geojson",
     )
 
     assert trip_info == {
@@ -190,7 +188,6 @@ def test_preprocess_gtfs_keeps_all_agencies(tmp_path):
 
     trip_info, _ = preprocess_gtfs(
         data_dir=str(tmp_path),
-        munich_geojson_path="unused.geojson",
     )
 
     assert trip_info["trip_munich"] == {
@@ -438,14 +435,12 @@ def test_load_new_data_calls_pipeline():
 
         result = load_new_data(
             data_dir="test_data",
-            munich_geojson_path="test.geojson",
         )
 
     mock_load_feed.assert_called_once()
 
     mock_preprocess.assert_called_once_with(
         data_dir="test_data",
-        munich_geojson_path="test.geojson",
     )
 
     mock_parse.assert_called_once_with(

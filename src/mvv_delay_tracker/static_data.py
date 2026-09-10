@@ -15,10 +15,12 @@ FILES_TO_UPDATE = ("routes.txt", "trips.txt")
 def download_static_files(
     url: str = STATIC_DATA_URL,
 ) -> dict[str, bytes]:
+    """Download the selected GTFS files from the remote archive."""
     response = requests.get(url, timeout=120)
     response.raise_for_status()
 
-    with ZipFile(BytesIO(response.content)) as archive:
+    archive_buffer = BytesIO(response.content)
+    with ZipFile(archive_buffer) as archive:
         archive_files = {
             Path(name).name: name
             for name in archive.namelist()
@@ -45,6 +47,7 @@ def find_changed_files(
     remote_files: dict[str, bytes],
     data_dir: Path = STATIC_DATA_DIR,
 ) -> list[str]:
+    """Return remote files that are missing or differ locally."""
     return [
         filename
         for filename, content in remote_files.items()
@@ -57,6 +60,7 @@ def update_static_files(
     remote_files: dict[str, bytes],
     data_dir: Path = STATIC_DATA_DIR,
 ) -> list[str]:
+    """Write changed GTFS files and return their names."""
     changed_files = find_changed_files(remote_files, data_dir)
     data_dir.mkdir(parents=True, exist_ok=True)
 

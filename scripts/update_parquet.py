@@ -12,7 +12,8 @@ MAP_PLOT_PATH = "docs/munich_delays.png"
 STATISTICS_PLOT_PATH = "docs/munich_delay_statistics.png"
 
 
-def main():
+def main() -> None:
+    """Update realtime data and regenerate the published plots."""
     print("Loading new MVV data...")
 
     new_data = load_new_data()

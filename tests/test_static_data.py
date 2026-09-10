@@ -1,5 +1,6 @@
 from pathlib import Path
 from io import BytesIO
+from unittest.mock import Mock
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
@@ -33,7 +34,7 @@ def test_download_static_files(monkeypatch):
 
     monkeypatch.setattr(
         "mvv_delay_tracker.static_data.requests.get",
-        lambda url, timeout: Response(),
+        Mock(return_value=Response()),
     )
 
     assert download_static_files("https://example.test/feed.zip") == {
@@ -51,7 +52,7 @@ def test_download_static_files_rejects_missing_file(monkeypatch):
 
     monkeypatch.setattr(
         "mvv_delay_tracker.static_data.requests.get",
-        lambda url, timeout: Response(),
+        Mock(return_value=Response()),
     )
 
     with pytest.raises(ValueError, match="trips.txt"):

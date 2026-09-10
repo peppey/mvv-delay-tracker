@@ -1,7 +1,10 @@
 import math
 
 
-def wgs84_to_utm32(latitude, longitude):
+def wgs84_to_utm32(
+    latitude: float,
+    longitude: float,
+) -> tuple[float, float]:
     """
     Convert WGS84 coordinates to UTM Zone 32N.
     """
@@ -126,4 +129,3 @@ def wgs84_to_utm32(latitude, longitude):
     )
 
     return easting, northing
-

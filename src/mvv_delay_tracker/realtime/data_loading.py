@@ -1,15 +1,16 @@
-import json
-import math
 import requests
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 from google.transit import gtfs_realtime_pb2
 
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
 
 
-def load_gtfs_realtime_feed(url=GTFS_REALTIME_URL):
+def load_gtfs_realtime_feed(
+    url: str = GTFS_REALTIME_URL,
+) -> gtfs_realtime_pb2.FeedMessage:
     """
     Download and parse the current GTFS-RT feed.
     """
@@ -24,20 +25,15 @@ def load_gtfs_realtime_feed(url=GTFS_REALTIME_URL):
 
 
 def preprocess_gtfs(
-    data_dir,
-    munich_geojson_path,
-):
+    data_dir: str,
+) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
     """
-    Preprocess static GTFS data and filter stops geographically
-    to the Munich boundary.
+    Load static GTFS metadata and Munich stop names.
 
     Parameters
     ----------
     data_dir : str
         Directory containing routes.txt, trips.txt and munich_stops.csv.
-
-    munich_geojson_path : str
-        Path to the GeoJSON file containing the Munich boundary.
 
     Returns
     -------
@@ -45,11 +41,13 @@ def preprocess_gtfs(
         Mapping from trip_id to line and agency information.
 
     stop_names : dict
-        Mapping from geographically valid stop_id to stop name.
+        Mapping from GTFS stop_id to stop name.
     """
 
+    static_data_directory = Path(data_dir) / "static"
+
     routes_df = pd.read_csv(
-        f"{data_dir}/static/routes.txt",
+        static_data_directory / "routes.txt",
         dtype={
             "route_id": str,
             "agency_id": str,
@@ -57,7 +55,7 @@ def preprocess_gtfs(
     )
 
     trips_df = pd.read_csv(
-        f"{data_dir}/static/trips.txt",
+        static_data_directory / "trips.txt",
         dtype={
             "trip_id": str,
             "route_id": str,
@@ -65,7 +63,7 @@ def preprocess_gtfs(
     )
 
     stops_df = pd.read_csv(
-        f"{data_dir}/static/munich_stops.csv",
+        static_data_directory / "munich_stops.csv",
         dtype={
             "stop_id": str,
         },
@@ -106,11 +104,11 @@ def preprocess_gtfs(
 
 
 def parse_trip_updates(
-    feed,
-    stop_names,
-    trip_info,
-    observation_timestamp,
-):
+    feed: gtfs_realtime_pb2.FeedMessage,
+    stop_names: dict[str, str],
+    trip_info: dict[str, dict[str, str]],
+    observation_timestamp: datetime,
+) -> pd.DataFrame:
     """
     Parse GTFS-RT trip updates into a pandas DataFrame.
     """
@@ -184,9 +182,8 @@ def parse_trip_updates(
 
 
 def load_new_data(
-    data_dir="data",
-    munich_geojson_path="data/static/munich.geojson",
-):
+    data_dir: str = "data",
+) -> pd.DataFrame:
     """
     Load and process the current MVV real-time data.
     """
@@ -197,7 +194,6 @@ def load_new_data(
 
     trip_info, stop_names = preprocess_gtfs(
         data_dir=data_dir,
-        munich_geojson_path=munich_geojson_path,
     )
 
     realtime_df = parse_trip_updates(
