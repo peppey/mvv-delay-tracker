@@ -15,6 +15,7 @@ EXPECTED_COLUMNS = [
     "stop_schedule_relationship",
     "line",
     "agency_id",
+    "agency_name",
     "stop_id",
     "stop_name",
     "stop_sequence",

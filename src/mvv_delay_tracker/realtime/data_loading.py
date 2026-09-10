@@ -1,11 +1,109 @@
 import requests
 import pandas as pd
 from datetime import datetime
+import json
 from pathlib import Path
 from google.transit import gtfs_realtime_pb2
 
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
+
+
+def load_trip_info_versions(
+    path: str = "data/static/trip_info.json",
+) -> dict[str, object]:
+    """Load timestamped static trip metadata."""
+    with open(path, encoding="utf-8") as file:
+        document = json.load(file)
+    for version in document.get("versions", {}).values():
+        version["_trip_index"] = {
+            trip_id: index
+            for index, trip_id in enumerate(version["trips"]["ids"])
+        }
+    return document
+
+
+def create_trip_info(
+    routes_path: str = "data/static/routes.txt",
+    trips_path: str = "data/static/trips.txt",
+) -> dict[str, dict[str, str]]:
+    """Create a legacy flat trip-to-line mapping from GTFS text files."""
+    routes_df = pd.read_csv(
+        routes_path,
+        dtype={"route_id": str},
+        usecols=["route_id", "route_short_name"],
+    )
+    trips_df = pd.read_csv(
+        trips_path,
+        dtype={"trip_id": str, "route_id": str},
+        usecols=["trip_id", "route_id"],
+    )
+    route_names = routes_df.set_index("route_id")["route_short_name"]
+    return {
+        row["trip_id"]: {"line": route_names[row["route_id"]]}
+        for row in trips_df[
+            trips_df["route_id"].isin(route_names.index)
+        ].to_dict("records")
+    }
+
+
+def _service_is_active(
+    service: dict[str, object],
+    start_date: str,
+) -> bool:
+    """Return whether a GTFS service operates on ``start_date``."""
+    if start_date in service["added_dates"]:
+        return True
+    if start_date in service["removed_dates"]:
+        return False
+    if service["start_date"] is None or service["end_date"] is None:
+        return False
+    if not service["start_date"] <= start_date <= service["end_date"]:
+        return False
+
+    weekday = [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+    ][datetime.strptime(start_date, "%Y%m%d").weekday()]
+    return weekday in service["weekdays"]
+
+
+def _resolve_trip_info(
+    trip_id: str,
+    start_date: str,
+    trip_info_versions: dict[str, object],
+) -> dict[str, str] | None:
+    """Resolve a trip from newest to oldest compatible GTFS version."""
+    versions = trip_info_versions.get("versions", {})
+    for timestamp in sorted(versions, reverse=True):
+        version = versions[timestamp]
+        trip_index = version["_trip_index"].get(trip_id)
+        if trip_index is None:
+            continue
+        agency = version["agencies"][
+            version["trips"]["agency_index"][trip_index]
+        ]
+        service_id = version["service_ids"][
+            version["trips"]["service_index"][trip_index]
+        ]
+        service = version["services"].get(service_id)
+        if service is not None and _service_is_active(service, start_date):
+            resolved = {
+                "line": version["lines"][
+                    version["trips"]["line_index"][trip_index]
+                ],
+                "agency_id": agency["agency_id"],
+                "agency_name": agency["agency_name"],
+                "service_id": service_id,
+            }
+            resolved["planned_departure_days"] = service["weekdays"]
+            return resolved
+    return None
 
 
 def load_gtfs_realtime_feed(
@@ -28,7 +126,7 @@ def preprocess_gtfs(
     data_dir: str,
 ) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
     """
-    Load static GTFS metadata and Munich stop names.
+    Load timestamped static GTFS metadata and Munich stop names.
 
     Parameters
     ----------
@@ -45,22 +143,33 @@ def preprocess_gtfs(
     """
 
     static_data_directory = Path(data_dir) / "static"
-
-    routes_df = pd.read_csv(
-        static_data_directory / "routes.txt",
-        dtype={
-            "route_id": str,
-            "agency_id": str,
-        },
-    )
-
-    trips_df = pd.read_csv(
-        static_data_directory / "trips.txt",
-        dtype={
-            "trip_id": str,
-            "route_id": str,
-        },
-    )
+    trip_info_path = static_data_directory / "trip_info.json"
+    if trip_info_path.exists():
+        trip_info_versions = load_trip_info_versions(str(trip_info_path))
+    else:
+        routes_df = pd.read_csv(
+            static_data_directory / "routes.txt",
+            dtype={"route_id": str, "agency_id": str},
+        )
+        trips_df = pd.read_csv(
+            static_data_directory / "trips.txt",
+            dtype={"trip_id": str, "route_id": str},
+        )
+        route_info = (
+            routes_df[
+                ["route_id", "route_short_name", "agency_id"]
+            ]
+            .set_index("route_id")
+            .to_dict("index")
+        )
+        trip_info_versions = {
+            trip["trip_id"]: {
+                "line": route_info[trip["route_id"]]["route_short_name"],
+                "agency_id": route_info[trip["route_id"]]["agency_id"],
+            }
+            for trip in trips_df.to_dict("records")
+            if trip["route_id"] in route_info
+        }
 
     stops_df = pd.read_csv(
         static_data_directory / "munich_stops.csv",
@@ -69,44 +178,19 @@ def preprocess_gtfs(
         },
     )
 
-    route_info = (
-        routes_df[
-            [
-                "route_id",
-                "route_short_name",
-                "agency_id",
-            ]
-        ]
-        .set_index("route_id")
-        .to_dict("index")
-    )
-
-    trip_info = {}
-
-    for _, trip in trips_df.iterrows():
-        route_id = trip["route_id"]
-
-        if route_id not in route_info:
-            continue
-
-        trip_info[trip["trip_id"]] = {
-            "line": route_info[route_id]["route_short_name"],
-            "agency_id": route_info[route_id]["agency_id"],
-        }
-
     stop_names = (
         stops_df
         .set_index("stop_id")["stop_name"]
         .to_dict()
     )
 
-    return trip_info, stop_names
+    return trip_info_versions, stop_names
 
 
 def parse_trip_updates(
     feed: gtfs_realtime_pb2.FeedMessage,
     stop_names: dict[str, str],
-    trip_info: dict[str, dict[str, str]],
+    trip_info: dict[str, object],
     observation_timestamp: datetime,
 ) -> pd.DataFrame:
     """
@@ -124,7 +208,14 @@ def parse_trip_updates(
 
         trip_id = str(trip.trip_id)
 
-        info = trip_info.get(trip_id)
+        if "versions" in trip_info:
+            info = _resolve_trip_info(
+                trip_id,
+                trip.start_date,
+                trip_info,
+            )
+        else:
+            info = trip_info.get(trip_id)
 
         if info is None:
             continue
@@ -159,6 +250,10 @@ def parse_trip_updates(
                     stop_schedule_relationship,
                 "line": info["line"],
                 "agency_id": info["agency_id"],
+                "agency_name": info.get("agency_name"),
+                "planned_departure_days": info.get(
+                    "planned_departure_days"
+                ),
                 "stop_id": stop_id,
                 "stop_name": stop_names[stop_id],
                 "stop_sequence": stop.stop_sequence,

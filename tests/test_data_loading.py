@@ -4,6 +4,8 @@ from unittest.mock import Mock, patch
 from datetime import datetime
 
 from mvv_delay_tracker.realtime.data_loading import (
+    create_trip_info,
+    _resolve_trip_info,
     load_gtfs_realtime_feed,
     preprocess_gtfs,
     parse_trip_updates,
@@ -119,6 +121,88 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
     assert stop_names == {
         "1001": "Marienplatz",
         "1002": "Karlsplatz",
+    }
+
+
+def test_create_trip_info_includes_all_routes_without_stops(tmp_path):
+    routes = pd.DataFrame({
+        "route_id": ["munich", "outside"],
+        "route_short_name": ["S1", "X1"],
+    })
+    trips = pd.DataFrame({
+        "trip_id": ["trip_munich", "trip_outside"],
+        "route_id": ["munich", "outside"],
+    })
+
+    routes_path = tmp_path / "routes.txt"
+    trips_path = tmp_path / "trips.txt"
+    routes.to_csv(routes_path, index=False)
+    trips.to_csv(trips_path, index=False)
+
+    assert create_trip_info(
+        routes_path=str(routes_path),
+        trips_path=str(trips_path),
+    ) == {
+        "trip_munich": {"line": "S1"},
+        "trip_outside": {"line": "X1"},
+    }
+
+
+def test_resolve_trip_info_uses_older_active_version():
+    trip_info_versions = {
+        "versions": {
+            "2026-09-10T00:00:00+02:00": {
+                "trips": {
+                    "ids": [],
+                    "line_index": [],
+                    "agency_index": [],
+                    "service_index": [],
+                },
+                "lines": [],
+                "agencies": [],
+                "service_ids": [],
+                "services": {},
+            },
+            "2026-09-05T12:00:00+02:00": {
+                "trips": {
+                    "ids": ["trip-1"],
+                    "line_index": [0],
+                    "agency_index": [0],
+                    "service_index": [0],
+                },
+                "lines": ["S1"],
+                "agencies": [
+                    {"agency_id": "a1", "agency_name": "Agency One"}
+                ],
+                "service_ids": ["service-1"],
+                "services": {
+                    "service-1": {
+                        "start_date": "20260901",
+                        "end_date": "20260930",
+                        "weekdays": ["thursday"],
+                        "added_dates": [],
+                        "removed_dates": [],
+                    }
+                },
+            },
+        }
+    }
+    for version in trip_info_versions["versions"].values():
+        version["_trip_index"] = {
+            trip_id: index
+            for index, trip_id in enumerate(version["trips"]["ids"])
+        }
+
+    assert _resolve_trip_info(
+        "trip-1",
+        "20260910",
+        trip_info_versions,
+    ) == {
+        "line": "S1",
+        "agency_id": "a1",
+        "agency_name": "Agency One",
+        "service_id": "service-1",
+        "planned_departure_days": ["thursday"],
     }
 
 
