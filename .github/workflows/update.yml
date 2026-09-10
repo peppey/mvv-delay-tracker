@@ -41,6 +41,7 @@ jobs:
           git add data/realtime/mvv_realtime.parquet
           git add docs/munich_delay_statistics.png
           git add docs/munich_delays.png
+          git add -f docs/delay_comparison.png
 
           git diff --cached --quiet || git commit -m "Update MVV data and plot"
 

@@ -8,6 +8,8 @@ This project is creating a publicly available dataset of MVV delays per station 
 
 ![Delays Report 2026](docs/munich_delay_statistics.png)
 
+![Delay comparison by transport mode](docs/delay_comparison.png)
+
 
 
 ## Licence
