@@ -1,0 +1,45 @@
+name: Update static GTFS data
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Check static GTFS data
+        id: check
+        run: uv run python scripts/check_static_data.py
+
+      - name: Update static GTFS data
+        if: steps.check.outputs.changed == 'true'
+        run: uv run python scripts/update_static_data.py
+
+      - name: Commit changes
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/static/routes.txt data/static/trips.txt
+          git diff --cached --quiet || git commit -m "Update static GTFS data"
+          git push
