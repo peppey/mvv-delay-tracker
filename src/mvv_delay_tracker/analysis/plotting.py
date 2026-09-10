@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -755,6 +756,135 @@ def calculate_delay_statistics(
     }
 
 
+def classify_transport_mode(line_name: str) -> str | None:
+    """
+    Classify an MVV line as S-Bahn, U-Bahn, or Tram/Bus.
+    """
+
+    normalized_line_name = str(line_name).strip().upper()
+
+    if re.fullmatch(r"S[A-Z0-9]", normalized_line_name):
+        return "S-Bahn"
+
+    if re.fullmatch(r"U[A-Z0-9]{2}", normalized_line_name):
+        return "U-Bahn"
+
+    if (
+        re.fullmatch(r"\d+", normalized_line_name)
+        or normalized_line_name.startswith(("X", "N"))
+    ):
+        return "Tram/Bus"
+
+    return None
+
+
+def calculate_transport_mode_delays(
+    delay_df: pd.DataFrame,
+    line_column: str = "line",
+) -> pd.DataFrame:
+    """
+    Calculate average departure delays for each transport mode.
+    """
+
+    classified_delay_df = delay_df.copy()
+    classified_delay_df["transport_mode"] = (
+        classified_delay_df[line_column]
+        .map(classify_transport_mode)
+    )
+
+    classified_delay_df = classified_delay_df.dropna(
+        subset=["transport_mode", "departure_delay"]
+    )
+    classified_delay_df["delay_minutes"] = (
+        classified_delay_df["departure_delay"] / 60
+    ).clip(lower=0)
+
+    transport_mode_order = ["S-Bahn", "U-Bahn", "Tram/Bus"]
+
+    return (
+        classified_delay_df
+        .groupby("transport_mode", as_index=False)["delay_minutes"]
+        .mean()
+        .set_index("transport_mode")
+        .reindex(transport_mode_order)
+        .reset_index()
+    )
+
+
+def create_delay_comparison_plot(
+    delay_df: pd.DataFrame,
+    output_path: str = "docs/delay_comparison.png",
+    line_column: str = "line",
+) -> None:
+    """
+    Create a bar chart comparing average delays by transport mode.
+    """
+
+    transport_mode_delays = calculate_transport_mode_delays(
+        delay_df,
+        line_column=line_column,
+    )
+    figure, axis = plt.subplots(figsize=(10, 6))
+
+    figure.patch.set_facecolor("#FFFFFF")
+    axis.set_facecolor("#FFFFFF")
+
+    bar_colors = ["#00695C", "#1976D2", "#00897B"]
+    bars = axis.bar(
+        transport_mode_delays["transport_mode"],
+        transport_mode_delays["delay_minutes"].fillna(0),
+        color=bar_colors,
+        width=0.58,
+    )
+
+    axis.set_title(
+        "MVV VERSPÄTUNGEN NACH VERKEHRSMITTEL",
+        fontsize=18,
+        fontweight="bold",
+        color="#263238",
+        pad=22,
+    )
+    axis.set_ylabel(
+        "Durchschnittliche Verspätung [Minuten]",
+        color="#546E7A",
+    )
+    axis.tick_params(axis="both", colors="#546E7A")
+    axis.spines[["top", "right", "left"]].set_visible(False)
+    axis.spines["bottom"].set_color("#CFD8DC")
+    axis.grid(axis="y", color="#E0E6ED", linewidth=0.8)
+    axis.set_axisbelow(True)
+
+    maximum_delay = transport_mode_delays["delay_minutes"].max()
+    axis.set_ylim(0, max(1, maximum_delay * 1.2))
+
+    for bar, delay_minutes in zip(
+        bars,
+        transport_mode_delays["delay_minutes"],
+    ):
+        label = "Keine Daten" if pd.isna(delay_minutes) else (
+            f"{delay_minutes:.1f} min"
+        )
+        axis.text(
+            bar.get_x() + bar.get_width() / 2,
+            0 if pd.isna(delay_minutes) else bar.get_height() + 0.05,
+            label,
+            ha="center",
+            va="bottom",
+            color="#546E7A",
+            fontsize=11,
+            fontweight="bold",
+        )
+
+    figure.tight_layout()
+    figure.savefig(
+        output_path,
+        dpi=120,
+        bbox_inches="tight",
+        facecolor=figure.get_facecolor(),
+    )
+    plt.close(figure)
+
+
 # ============================================================
 # STATISTICS REPORT
 # ============================================================
@@ -1023,6 +1153,7 @@ def generate_plot(
     stops_path: str = "data/static/munich_stops.csv",
     map_output_path: str = "docs/munich_delays.png",
     statistics_output_path: str = "docs/munich_delay_statistics.png",
+    comparison_output_path: str = "docs/delay_comparison.png",
     line_column: str = "line",
 ) -> None:
     """
@@ -1193,6 +1324,12 @@ def generate_plot(
     create_delay_statistics_plot(
         statistics,
         output_path=statistics_output_path
+    )
+
+    create_delay_comparison_plot(
+        delay_df,
+        output_path=comparison_output_path,
+        line_column=line_column,
     )
 
     # ========================================================

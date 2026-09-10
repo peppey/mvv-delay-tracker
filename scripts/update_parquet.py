@@ -10,6 +10,7 @@ from mvv_delay_tracker.analysis.plotting import generate_plot
 DATA_PATH = "data/realtime/mvv_realtime.parquet"
 MAP_PLOT_PATH = "docs/munich_delays.png"
 STATISTICS_PLOT_PATH = "docs/munich_delay_statistics.png"
+COMPARISON_PLOT_PATH = "docs/delay_comparison.png"
 
 
 def main() -> None:
@@ -50,6 +51,7 @@ def main() -> None:
         data_path=DATA_PATH,
         map_output_path=MAP_PLOT_PATH,
         statistics_output_path=STATISTICS_PLOT_PATH,
+        comparison_output_path=COMPARISON_PLOT_PATH,
     )
 
     print("Pipeline finished successfully.")
