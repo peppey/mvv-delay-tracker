@@ -109,8 +109,12 @@ def calculate_average_station_delay(
     Stations are grouped only by stop_name.
     """
 
+    non_negative_delay_df = delay_df[
+        delay_df["departure_delay"] >= 0
+    ]
+
     station_delay = (
-        delay_df
+        non_negative_delay_df
         .dropna(
             subset=[
                 "departure_delay",
@@ -551,16 +555,17 @@ def calculate_delay_statistics(
     # Average delay overall
     # --------------------------------------------------------
 
-    average_delay = (
-        df["delay_minutes"].mean()
-    )
+    non_negative_delay_df = df[
+        df["departure_delay"] >= 0
+    ]
+    average_delay = non_negative_delay_df["delay_minutes"].mean()
 
     # --------------------------------------------------------
     # Most delayed line
     # --------------------------------------------------------
 
     line_statistics = (
-        df
+        non_negative_delay_df
         .dropna(
             subset=[
                 line_column
@@ -588,7 +593,7 @@ def calculate_delay_statistics(
     # --------------------------------------------------------
 
     station_statistics = (
-        df
+        non_negative_delay_df
         .dropna(
             subset=[
                 "stop_name"
@@ -795,6 +800,9 @@ def calculate_transport_mode_delays(
     classified_delay_df = classified_delay_df.dropna(
         subset=["transport_mode", "departure_delay"]
     )
+    classified_delay_df = classified_delay_df[
+        classified_delay_df["departure_delay"] >= 0
+    ]
     classified_delay_df["delay_minutes"] = (
         classified_delay_df["departure_delay"] / 60
     ).clip(lower=0)
