@@ -5,7 +5,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 import pytest
 
-from mvv_delay_tracker.static_data import (
+from mvv_delay_tracker.static.static_data import (
     download_static_files,
     find_changed_files,
     update_static_files,
@@ -33,7 +33,7 @@ def test_download_static_files(monkeypatch):
             pass
 
     monkeypatch.setattr(
-        "mvv_delay_tracker.static_data.requests.get",
+        "mvv_delay_tracker.static.static_data.requests.get",
         Mock(return_value=Response()),
     )
 
@@ -51,7 +51,7 @@ def test_download_static_files_rejects_missing_file(monkeypatch):
             pass
 
     monkeypatch.setattr(
-        "mvv_delay_tracker.static_data.requests.get",
+        "mvv_delay_tracker.static.static_data.requests.get",
         Mock(return_value=Response()),
     )
 

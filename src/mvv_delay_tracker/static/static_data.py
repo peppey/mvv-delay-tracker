@@ -43,6 +43,27 @@ def download_static_files(
         }
 
 
+def download_static_file(
+    filename: str,
+    url: str = STATIC_DATA_URL,
+) -> bytes:
+    """Download one file from the static GTFS archive."""
+    response = requests.get(url, timeout=120)
+    response.raise_for_status()
+
+    with ZipFile(BytesIO(response.content)) as archive:
+        archive_files = {
+            Path(name).name: name
+            for name in archive.namelist()
+            if not name.endswith("/")
+        }
+        if filename not in archive_files:
+            raise ValueError(
+                f"The GTFS archive is missing: {filename}"
+            )
+        return archive.read(archive_files[filename])
+
+
 def find_changed_files(
     remote_files: dict[str, bytes],
     data_dir: Path = STATIC_DATA_DIR,
