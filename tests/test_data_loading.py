@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from mvv_delay_tracker.realtime.data_loading import (
     load_gtfs_realtime_feed,
@@ -25,10 +26,12 @@ def sample_trip_info():
         "123": {
             "line": "S1",
             "agency_id": "191",
+            "agency_name": "Test Agency",
         },
         "456": {
             "line": "S8",
             "agency_id": "364",
+            "agency_name": "Test Agency 2",
         },
     }
 
@@ -89,12 +92,17 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
         "stop_id": [1001, 1002],
         "stop_name": ["Marienplatz", "Karlsplatz"],
     })
+    agencies = pd.DataFrame({
+        "agency_id": [191, 364, 999],
+        "agency_name": ["Agency 191", "Agency 364", "Agency 999"],
+    })
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
 
     routes.to_csv(static_dir / "routes.txt", index=False)
     trips.to_csv(static_dir / "trips.txt", index=False)
+    agencies.to_csv(static_dir / "agency.txt", index=False)
     stops.to_csv(static_dir / "munich_stops.csv", index=False)
 
     trip_info, stop_names = preprocess_gtfs(
@@ -105,14 +113,17 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
         "101": {
             "line": "S1",
             "agency_id": "191",
+            "agency_name": "Agency 191",
         },
         "102": {
             "line": "S8",
             "agency_id": "364",
+            "agency_name": "Agency 364",
         },
         "103": {
             "line": "X1",
             "agency_id": "999",
+            "agency_name": "Agency 999",
         },
     }
 
@@ -145,6 +156,10 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
     routes.to_csv(static_dir / "routes.txt", index=False)
     trips.to_csv(static_dir / "trips.txt", index=False)
     stops.to_csv(static_dir / "munich_stops.csv", index=False)
+    pd.DataFrame({
+        "agency_id": [191],
+        "agency_name": ["Agency 191"],
+    }).to_csv(static_dir / "agency.txt", index=False)
 
     trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
@@ -154,6 +169,7 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
         "456": {
             "line": "S1",
             "agency_id": "191",
+            "agency_name": "Agency 191",
         }
     }
 
@@ -181,9 +197,12 @@ def test_preprocess_gtfs_keeps_all_agencies(tmp_path):
 
     static_dir = tmp_path / "static"
     static_dir.mkdir()
-
     routes.to_csv(static_dir / "routes.txt", index=False)
     trips.to_csv(static_dir / "trips.txt", index=False)
+    pd.DataFrame({
+        "agency_id": [191, 999],
+        "agency_name": ["Agency 191", "Agency 999"],
+    }).to_csv(static_dir / "agency.txt", index=False)
     stops.to_csv(static_dir / "munich_stops.csv", index=False)
 
     trip_info, _ = preprocess_gtfs(
@@ -193,11 +212,13 @@ def test_preprocess_gtfs_keeps_all_agencies(tmp_path):
     assert trip_info["trip_munich"] == {
         "line": "S1",
         "agency_id": "191",
+        "agency_name": "Agency 191",
     }
 
     assert trip_info["trip_outside"] == {
         "line": "X1",
         "agency_id": "999",
+        "agency_name": "Agency 999",
     }
 
 
@@ -255,6 +276,10 @@ def test_parse_trip_updates_parses_valid_trip(
     assert row["stop_id"] == "1001"
     assert row["stop_name"] == "Marienplatz"
     assert row["stop_sequence"] == 1
+    assert row["departure_time"] == datetime.fromtimestamp(
+        1757412000,
+        tz=ZoneInfo("UTC"),
+    ).astimezone(ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
     assert row["departure_delay"] == 60
     assert row["observation_timestamp"] == observation_timestamp
 

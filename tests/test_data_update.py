@@ -15,6 +15,7 @@ EXPECTED_COLUMNS = [
     "stop_schedule_relationship",
     "line",
     "agency_id",
+    "agency_name",
     "stop_id",
     "stop_name",
     "stop_sequence",
@@ -36,6 +37,7 @@ def test_load_existing_realtime_data(tmp_path):
         "stop_schedule_relationship": [pd.NA],
         "line": ["S1"],
         "agency_id": ["191"],
+        "agency_name": ["Test Agency"],
         "stop_id": ["1001"],
         "stop_name": ["Marienplatz"],
         "stop_sequence": [1],
@@ -46,8 +48,16 @@ def test_load_existing_realtime_data(tmp_path):
     })
 
     df.to_parquet(parquet_path, index=False)
+    agency_path = tmp_path / "agency.txt"
+    pd.DataFrame({
+        "agency_id": ["191"],
+        "agency_name": ["Test Agency"],
+    }).to_csv(agency_path, index=False)
 
-    result = load_existing_realtime_data(parquet_path)
+    result = load_existing_realtime_data(
+        parquet_path,
+        agency_path=str(agency_path),
+    )
 
     pd.testing.assert_frame_equal(
         result,
@@ -66,6 +76,7 @@ def test_load_existing_realtime_data_file_not_found(tmp_path):
     assert result.empty
     assert list(result.columns) == EXPECTED_COLUMNS
 
+    assert result["agency_name"].isnull().all()
 
 def test_update_realtime_data_appends_new_data():
     existing_df = pd.DataFrame({
@@ -125,6 +136,7 @@ def test_update_realtime_data_keeps_latest_observation():
         "line": ["S1"],
         "agency_id": ["191"],
         "departure_delay": [120],
+        "agency_name": ["Agency 191"],
     })
 
     result = update_realtime_data(
@@ -136,6 +148,7 @@ def test_update_realtime_data_keeps_latest_observation():
     assert result.iloc[0]["departure_delay"] == 120
     assert result.iloc[0]["observation_timestamp"] == "2026-09-09 10:05:00"
     assert result.iloc[0]["agency_id"] == "191"
+    assert result.iloc[0]["agency_name"] == "Agency 191"
 
 
 def test_update_realtime_data_deduplicates_by_trip_start_date_stop():

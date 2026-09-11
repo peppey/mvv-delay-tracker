@@ -1,8 +1,10 @@
 import pandas as pd
+from pathlib import Path
 
 
 def load_existing_realtime_data(
     parquet_path: str = "data/realtime/mvv_realtime.parquet",
+    agency_path: str = "data/static/agency.txt",
 ) -> pd.DataFrame:
     """
     Load existing MVV real-time data from a Parquet file.
@@ -13,6 +15,22 @@ def load_existing_realtime_data(
 
     try:
         existing_df = pd.read_parquet(parquet_path)
+
+        if "agency_name" not in existing_df.columns:
+            existing_df["agency_name"] = pd.NA
+
+        agency_file = Path(agency_path)
+        if agency_file.exists() and "agency_id" in existing_df.columns:
+            agency_df = pd.read_csv(
+                agency_file,
+                dtype={"agency_id": str},
+                usecols=["agency_id", "agency_name"],
+            )
+            agency_names = agency_df.set_index("agency_id")["agency_name"]
+            existing_df["agency_name"] = (
+                existing_df["agency_id"].astype(str).map(agency_names)
+                .fillna(existing_df["agency_name"])
+            )
 
         # Convert trip_schedule_relationship
         if "trip_schedule_relationship" not in existing_df.columns:
@@ -67,6 +85,7 @@ def load_existing_realtime_data(
                 "stop_schedule_relationship",
                 "line",
                 "agency_id",
+                "agency_name",
                 "stop_id",
                 "stop_name",
                 "stop_sequence",
@@ -104,6 +123,14 @@ def update_realtime_data(
     if "stop_schedule_relationship" not in new_df.columns:
         new_df = new_df.copy()
         new_df["stop_schedule_relationship"] = pd.NA
+
+    if "agency_name" not in existing_df.columns:
+        existing_df = existing_df.copy()
+        existing_df["agency_name"] = pd.NA
+
+    if "agency_name" not in new_df.columns:
+        new_df = new_df.copy()
+        new_df["agency_name"] = pd.NA
 
     existing_df = existing_df.copy()
     new_df = new_df.copy()

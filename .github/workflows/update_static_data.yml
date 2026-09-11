@@ -35,11 +35,14 @@ jobs:
         if: steps.check.outputs.changed == 'true'
         run: uv run python scripts/update_static_data.py
 
+      - name: Check realtime departure data quality
+        run: uv run python scripts/check_realtime_data_quality.py
+
       - name: Commit changes
-        if: steps.check.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/static/routes.txt data/static/trips.txt
+          git add data/quality/realtime_departure_failures.csv
           git diff --cached --quiet || git commit -m "Update static GTFS data"
           git push

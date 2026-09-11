@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from mvv_delay_tracker.static_data import (
+from mvv_delay_tracker.static.static_data import (
     download_static_files,
     update_static_files,
 )

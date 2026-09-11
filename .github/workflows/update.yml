@@ -33,6 +33,25 @@ jobs:
       - name: Update MVV data
         run: uv run python scripts/update_parquet.py
 
+      - name: Update README access date
+        run: |
+          python - <<'PY'
+          from datetime import datetime
+          from pathlib import Path
+          import re
+
+          readme_path = Path("README.md")
+          readme = readme_path.read_text()
+          current_date = datetime.now().strftime("%B %Y")
+          updated_readme = re.sub(
+              r"^\*\*Last accessed:\*\* .*$",
+              f"**Last accessed:** {current_date}",
+              readme,
+              flags=re.MULTILINE,
+          )
+          readme_path.write_text(updated_readme)
+          PY
+
       - name: Commit changes
         run: |
           git config user.name "github-actions[bot]"
@@ -42,6 +61,9 @@ jobs:
           git add docs/munich_delay_statistics.png
           git add docs/munich_delays.png
           git add -f docs/delay_comparison.png
+          git add -f docs/line_comparison.png
+          git add -f docs/delay_heatmap.png
+          git add README.md
 
           git diff --cached --quiet || git commit -m "Update MVV data and plot"
 

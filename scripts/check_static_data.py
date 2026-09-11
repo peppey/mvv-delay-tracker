@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from mvv_delay_tracker.static_data import (
+from mvv_delay_tracker.static.static_data import (
     download_static_files,
     find_changed_files,
 )

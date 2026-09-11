@@ -1,11 +1,21 @@
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from google.transit import gtfs_realtime_pb2
 
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
+LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
+
+
+def _epoch_to_local_datetime(timestamp: int) -> datetime:
+    """Convert a GTFS-RT UTC epoch timestamp to German local time."""
+    return datetime.fromtimestamp(
+        timestamp,
+        tz=timezone.utc,
+    ).astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
 
 
 def load_gtfs_realtime_feed(
@@ -54,6 +64,16 @@ def preprocess_gtfs(
         },
     )
 
+    agency_df = pd.read_csv(
+        static_data_directory / "agency.txt",
+        dtype={"agency_id": str},
+    )
+    agency_names = (
+        agency_df
+        .set_index("agency_id")["agency_name"]
+        .to_dict()
+    )
+
     trips_df = pd.read_csv(
         static_data_directory / "trips.txt",
         dtype={
@@ -92,6 +112,9 @@ def preprocess_gtfs(
         trip_info[trip["trip_id"]] = {
             "line": route_info[route_id]["route_short_name"],
             "agency_id": route_info[route_id]["agency_id"],
+            "agency_name": agency_names.get(
+                route_info[route_id]["agency_id"]
+            ),
         }
 
     stop_names = (
@@ -159,19 +182,20 @@ def parse_trip_updates(
                     stop_schedule_relationship,
                 "line": info["line"],
                 "agency_id": info["agency_id"],
+                "agency_name": info["agency_name"],
                 "stop_id": stop_id,
                 "stop_name": stop_names[stop_id],
                 "stop_sequence": stop.stop_sequence,
             }
 
             if stop.HasField("departure"):
-                row["departure_time"] = datetime.fromtimestamp(
+                row["departure_time"] = _epoch_to_local_datetime(
                     stop.departure.time
                 )
                 row["departure_delay"] = stop.departure.delay
 
             if stop.HasField("arrival"):
-                row["arrival_time"] = datetime.fromtimestamp(
+                row["arrival_time"] = _epoch_to_local_datetime(
                     stop.arrival.time
                 )
                 row["arrival_delay"] = stop.arrival.delay
@@ -188,7 +212,9 @@ def load_new_data(
     Load and process the current MVV real-time data.
     """
 
-    observation_timestamp = datetime.now()
+    observation_timestamp = datetime.now(LOCAL_TIMEZONE).replace(
+        tzinfo=None
+    )
 
     feed = load_gtfs_realtime_feed()
 

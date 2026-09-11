@@ -9,7 +9,7 @@ import requests
 
 STATIC_DATA_URL = "https://download.gtfs.de/germany/nv_free/latest.zip"
 STATIC_DATA_DIR = Path("data/static")
-FILES_TO_UPDATE = ("routes.txt", "trips.txt")
+FILES_TO_UPDATE = ("agency.txt", "routes.txt", "trips.txt")
 
 
 def download_static_files(
@@ -41,6 +41,27 @@ def download_static_files(
             filename: archive.read(archive_files[filename])
             for filename in FILES_TO_UPDATE
         }
+
+
+def download_static_file(
+    filename: str,
+    url: str = STATIC_DATA_URL,
+) -> bytes:
+    """Download one file from the static GTFS archive."""
+    response = requests.get(url, timeout=120)
+    response.raise_for_status()
+
+    with ZipFile(BytesIO(response.content)) as archive:
+        archive_files = {
+            Path(name).name: name
+            for name in archive.namelist()
+            if not name.endswith("/")
+        }
+        if filename not in archive_files:
+            raise ValueError(
+                f"The GTFS archive is missing: {filename}"
+            )
+        return archive.read(archive_files[filename])
 
 
 def find_changed_files(
