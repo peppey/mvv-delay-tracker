@@ -1,7 +1,4 @@
 .github/copilot-instructions.md
-data/realtime/mvv_realtime.parquet
-docs/munich_delay_statistics.png
-docs/munich_delays.png
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
