@@ -10,6 +10,7 @@ This project is creating a publicly available dataset of MVV delays per station 
 
 ![Delay comparison by transport mode](docs/delay_comparison.png)
 
+![Delay comparison by line](docs/line_comparison.png)
 
 
 ## Licence

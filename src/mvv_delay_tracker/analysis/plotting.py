@@ -844,8 +844,11 @@ def calculate_transport_mode_delays(
 
     return (
         classified_delay_df
-        .groupby("transport_mode", as_index=False)["delay_minutes"]
-        .mean()
+        .groupby("transport_mode", as_index=False)
+        .agg(
+            delay_minutes=("delay_minutes", "mean"),
+            number_of_observations=("delay_minutes", "size"),
+        )
         .set_index("transport_mode")
         .reindex(transport_mode_order)
         .reset_index()
@@ -900,12 +903,13 @@ def create_delay_comparison_plot(
     maximum_delay = transport_mode_delays["delay_minutes"].max()
     axis.set_ylim(0, max(1, maximum_delay * 1.2))
 
-    for bar, delay_minutes in zip(
+    for bar, delay_minutes, number_of_observations in zip(
         bars,
         transport_mode_delays["delay_minutes"],
+        transport_mode_delays["number_of_observations"],
     ):
         label = "Keine Daten" if pd.isna(delay_minutes) else (
-            f"{delay_minutes:.1f} min"
+            f"{delay_minutes:.1f} min · n={int(number_of_observations):,}"
         )
         axis.text(
             bar.get_x() + bar.get_width() / 2,
@@ -918,7 +922,243 @@ def create_delay_comparison_plot(
             fontweight="bold",
         )
 
-    figure.tight_layout()
+    figure.text(
+        0.5,
+        0.015,
+        "n = Anzahl erfasster Haltestellenbesuche",
+        ha="center",
+        va="center",
+        fontsize=9,
+        color="#90A4AE",
+    )
+
+    figure.tight_layout(rect=[0, 0.04, 1, 1])
+    figure.savefig(
+        output_path,
+        dpi=120,
+        bbox_inches="tight",
+        facecolor=figure.get_facecolor(),
+    )
+    plt.close(figure)
+
+
+def create_line_comparison_plot(
+    delay_df: pd.DataFrame,
+    output_path: str = "docs/line_comparison.png",
+    line_column: str = "line",
+    lines_path: str = "data/static/munich_lines.csv",
+    number_of_lines: int = 15,
+) -> None:
+    """Create a horizontal plot of the lines with the highest median delay."""
+
+    lines_df = pd.read_csv(lines_path, dtype={"line": str})
+    line_modes = lines_df.set_index("line")["mode"]
+
+    line_delay_df = delay_df.copy()
+    line_delay_df["transport_mode"] = (
+        line_delay_df[line_column].astype(str).str.strip().map(line_modes)
+    )
+    line_delay_df["transport_mode"] = (
+        line_delay_df["transport_mode"]
+        .replace({"Tram": "Tram/Bus", "Bus": "Tram/Bus"})
+        .fillna(line_delay_df[line_column].map(classify_transport_mode))
+    )
+    line_delay_df = line_delay_df.dropna(
+        subset=[line_column, "transport_mode", "departure_delay"]
+    )
+    line_delay_df["delay_minutes"] = (
+        line_delay_df["departure_delay"] / 60
+    ).clip(lower=0)
+
+    line_statistics = (
+        line_delay_df
+        .groupby([line_column, "transport_mode"], as_index=False)
+        .agg(
+            median_delay=("delay_minutes", "median"),
+            number_of_observations=("delay_minutes", "size"),
+        )
+        .sort_values("median_delay", ascending=False)
+        .head(number_of_lines)
+        .sort_values("median_delay")
+    )
+
+    mode_colors = {
+        "S-Bahn": "#00695C",
+        "U-Bahn": "#1976D2",
+        "Tram/Bus": "#00897B",
+    }
+
+    figure, axis = plt.subplots(figsize=(11, 8))
+    figure.patch.set_facecolor("#FFFFFF")
+    axis.set_facecolor("#FFFFFF")
+
+    bars = axis.barh(
+        line_statistics[line_column].astype(str),
+        line_statistics["median_delay"],
+        color=line_statistics["transport_mode"].map(mode_colors),
+        height=0.62,
+    )
+
+    axis.set_title(
+        "MEDIANE VERSPÄTUNG NACH LINIE - MÜNCHEN 2026",
+        fontsize=14,
+        fontweight="bold",
+        color="#263238",
+        pad=22,
+    )
+    axis.set_xlabel("Mediane Verspätung [Minuten]", color="#546E7A")
+    axis.tick_params(axis="both", colors="#546E7A")
+    axis.spines[["top", "right", "left"]].set_visible(False)
+    axis.spines["bottom"].set_color("#CFD8DC")
+    axis.grid(axis="x", color="#E0E6ED", linewidth=0.8)
+    axis.set_axisbelow(True)
+
+    maximum_delay = line_statistics["median_delay"].max()
+    axis.set_xlim(0, max(1, maximum_delay * 1.3))
+
+    for bar, (_, line) in zip(bars, line_statistics.iterrows()):
+        axis.text(
+            bar.get_width() + maximum_delay * 0.02,
+            bar.get_y() + bar.get_height() / 2,
+            f'{line["median_delay"]:.1f} min · n={line["number_of_observations"]:,}',
+            va="center",
+            color="#546E7A",
+            fontsize=10,
+        )
+
+    figure.text(
+        0.5,
+        0.015,
+        "n = Anzahl erfasster Haltestellenbesuche",
+        ha="center",
+        va="center",
+        fontsize=9,
+        color="#90A4AE",
+    )
+
+    figure.tight_layout(rect=[0, 0.04, 1, 1])
+    figure.savefig(
+        output_path,
+        dpi=120,
+        bbox_inches="tight",
+        facecolor=figure.get_facecolor(),
+    )
+    plt.close(figure)
+
+
+def create_delay_heatmap(
+    delay_df: pd.DataFrame,
+    output_path: str = "docs/delay_heatmap.png",
+) -> None:
+    """Create a weekday-by-hour heatmap of average departure delays."""
+
+    required_columns = [
+        "observation_timestamp",
+        "departure_delay",
+    ]
+    missing_columns = [
+        column
+        for column in required_columns
+        if column not in delay_df.columns
+    ]
+    if missing_columns:
+        raise ValueError(
+            f"Für die Heatmap fehlen Spalten: {missing_columns}"
+        )
+
+    heatmap_df = delay_df[required_columns].copy()
+    heatmap_df["observation_timestamp"] = pd.to_datetime(
+        heatmap_df["observation_timestamp"],
+        errors="coerce",
+    )
+    heatmap_df["delay_minutes"] = (
+        pd.to_numeric(heatmap_df["departure_delay"], errors="coerce") / 60
+    ).clip(lower=0)
+    heatmap_df = heatmap_df.dropna(
+        subset=["observation_timestamp", "delay_minutes"]
+    )
+    heatmap_df["weekday"] = heatmap_df[
+        "observation_timestamp"
+    ].dt.dayofweek
+    heatmap_df["hour"] = heatmap_df[
+        "observation_timestamp"
+    ].dt.hour
+
+    weekday_order = [
+        "Montag",
+        "Dienstag",
+        "Mittwoch",
+        "Donnerstag",
+        "Freitag",
+        "Samstag",
+        "Sonntag",
+    ]
+    heatmap_values = (
+        heatmap_df
+        .pivot_table(
+            index="weekday",
+            columns="hour",
+            values="delay_minutes",
+            aggfunc="mean",
+        )
+        .reindex(index=range(7), columns=range(24))
+    )
+
+    delay_colormap = LinearSegmentedColormap.from_list(
+        "delay_green_blue_red",
+        ["#E8F5E9", "#2C7FB8", "#8B0000"],
+    )
+    maximum_delay = heatmap_values.to_numpy().max()
+
+    number_of_observations = len(heatmap_df)
+
+    figure, axis = plt.subplots(figsize=(15, 6.5))
+    figure.patch.set_facecolor("#FFFFFF")
+    axis.set_facecolor("#FFFFFF")
+
+    image = axis.imshow(
+        heatmap_values,
+        cmap=delay_colormap,
+        aspect="auto",
+        interpolation="nearest",
+        vmin=0,
+        vmax=max(1, maximum_delay),
+    )
+    displayed_hours = range(0, 24, 2)
+    axis.set_xticks(list(displayed_hours))
+    axis.set_xticklabels(
+        [f"{hour:02d}:00" for hour in displayed_hours],
+        fontsize=10,
+    )
+    axis.set_yticks(range(7))
+    axis.set_yticklabels(weekday_order)
+    axis.set_xlabel("Uhrzeit", color="#546E7A")
+    axis.set_ylabel("Wochentag", color="#546E7A")
+    axis.tick_params(axis="both", colors="#546E7A")
+    axis.set_title(
+        "DURCHSCHNITTLICHE VERSPÄTUNG NACH WOCHENTAG UND UHRZEIT",
+        fontsize=14,
+        fontweight="bold",
+        color="#263238",
+        pad=18,
+    )
+    axis.spines[:].set_visible(False)
+
+    colorbar = figure.colorbar(image, ax=axis, pad=0.02)
+    colorbar.set_label("Durchschnittliche Verspätung [Minuten]")
+    colorbar.ax.tick_params(colors="#546E7A")
+
+    figure.text(
+        0.5,
+        0.015,
+        f"Leere Felder: keine Beobachtungen · Datenbasis: "
+        f"{number_of_observations:,} erfasste Haltestellenbesuche",
+        ha="center",
+        va="center",
+        fontsize=9,
+        color="#90A4AE",
+    )
+    figure.tight_layout(rect=[0, 0.04, 1, 1])
     figure.savefig(
         output_path,
         dpi=120,
@@ -1165,7 +1405,7 @@ def create_delay_statistics_plot(
     figure.text(
         0.5,
         0.035,
-        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 8.9.26',
+        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 9.9.2026',
         ha="center",
         va="center",
         fontsize=9,
@@ -1198,6 +1438,8 @@ def generate_plot(
     map_output_path: str = "docs/munich_delays.png",
     statistics_output_path: str = "docs/munich_delay_statistics.png",
     comparison_output_path: str = "docs/delay_comparison.png",
+    line_comparison_output_path: str = "docs/line_comparison.png",
+    heatmap_output_path: str = "docs/delay_heatmap.png",
     line_column: str = "line",
 ) -> None:
     """
@@ -1311,7 +1553,7 @@ def generate_plot(
     figure.text(
         0.02,
         0.5,
-        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 8.9.26',
+        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 9.9.26',
         ha="center",
         va="center",
         fontsize=9,
@@ -1381,6 +1623,18 @@ def generate_plot(
         output_path=comparison_output_path,
         line_column=line_column,
         lines_path=lines_path,
+    )
+
+    create_line_comparison_plot(
+        delay_df,
+        output_path=line_comparison_output_path,
+        line_column=line_column,
+        lines_path=lines_path,
+    )
+
+    create_delay_heatmap(
+        delay_df,
+        output_path=heatmap_output_path,
     )
 
     # ========================================================

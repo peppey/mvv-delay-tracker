@@ -4,6 +4,8 @@ from mvv_delay_tracker.analysis.plotting import (
     calculate_transport_mode_delays,
     classify_transport_mode,
     create_delay_comparison_plot,
+    create_delay_heatmap,
+    create_line_comparison_plot,
     filter_munich_lines,
 )
 
@@ -58,6 +60,35 @@ def test_create_delay_comparison_plot(tmp_path):
     output_path = tmp_path / "delay_comparison.png"
 
     create_delay_comparison_plot(delay_df, str(output_path))
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_create_line_comparison_plot(tmp_path):
+    delay_df = pd.DataFrame({
+        "line": ["S1", "S1", "U1", "18", "18"],
+        "departure_delay": [60, 180, 120, 60, 240],
+    })
+    output_path = tmp_path / "line_comparison.png"
+
+    create_line_comparison_plot(delay_df, str(output_path))
+
+    assert output_path.exists()
+    assert output_path.stat().st_size > 0
+
+
+def test_create_delay_heatmap(tmp_path):
+    delay_df = pd.DataFrame({
+        "observation_timestamp": [
+            "2026-09-07 08:00:00",
+            "2026-09-08 17:00:00",
+        ],
+        "departure_delay": [60, 180],
+    })
+    output_path = tmp_path / "delay_heatmap.png"
+
+    create_delay_heatmap(delay_df, str(output_path))
 
     assert output_path.exists()
     assert output_path.stat().st_size > 0
