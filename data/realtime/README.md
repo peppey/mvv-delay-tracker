@@ -15,6 +15,7 @@ at a particular observation time.
 | `stop_schedule_relationship` | Relationship between the observed stop visit and the scheduled stop visit, for example `SCHEDULED`, `SKIPPED`, or `NO_DATA`. |
 | `line` | Public-facing line name, such as `S6`, `U3`, or `18`. |
 | `agency_id` | Identifier of the transport operator in the static GTFS `agency.txt` data. |
+| `agency_name` | Human-readable name of the transport operator, from the static GTFS `agency.txt` data. |
 | `stop_id` | Identifier of the stop in the static GTFS data. |
 | `stop_name` | Human-readable name of the observed stop. |
 | `stop_sequence` | Position of the stop within the trip. It identifies the stop visit together with `trip_id`. |
@@ -22,6 +23,7 @@ at a particular observation time.
 | `departure_delay` | Departure delay in seconds. Positive values indicate a delay; negative values indicate an early departure. |
 | `arrival_time` | Observed or predicted arrival date and time at the stop. Stored as a timezone-naive timestamp representing `Europe/Berlin` time. |
 | `arrival_delay` | Arrival delay in seconds. Positive values indicate a delay; negative values indicate an early arrival. |
+| `is_prediction` | `True` if the stop visit had not yet been observed after its scheduled arrival at collection time (a live prediction). `False` once the arrival has been confirmed, or if the stop visit was `SKIPPED`. |
 
 ## Notes
 
@@ -32,3 +34,6 @@ at a particular observation time.
 - Missing arrival or departure values are expected for observations where the
   corresponding information was not provided by the realtime feed.
 - A unique stop visit is identified by `trip_id`, `start_date`, and `stop_id`.
+- When a stop visit is observed again after a prediction, the confirmed
+  observation (`is_prediction == False`) replaces the earlier prediction for
+  the same `trip_id`, `start_date`, and `stop_id`.

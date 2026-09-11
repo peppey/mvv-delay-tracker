@@ -18,6 +18,39 @@ def _epoch_to_local_datetime(timestamp: int) -> datetime:
     ).astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
 
 
+def compute_is_prediction(delay_df: pd.DataFrame) -> pd.Series:
+    """
+    A stop visit is a prediction until it has been observed after
+    its scheduled arrival. SKIPPED stop visits are never predictions.
+    """
+    row_count = len(delay_df)
+
+    if "observation_timestamp" in delay_df.columns:
+        observation_timestamp = pd.to_datetime(
+            delay_df["observation_timestamp"], errors="coerce"
+        )
+    else:
+        observation_timestamp = pd.Series(pd.NaT, index=delay_df.index)
+
+    if "arrival_time" in delay_df.columns:
+        arrival_time = pd.to_datetime(
+            delay_df["arrival_time"], errors="coerce"
+        )
+    else:
+        arrival_time = pd.Series(pd.NaT, index=delay_df.index)
+
+    if "stop_schedule_relationship" in delay_df.columns:
+        skipped_mask = delay_df["stop_schedule_relationship"] == "SKIPPED"
+    else:
+        skipped_mask = pd.Series(False, index=delay_df.index)
+
+    observed_after_arrival = observation_timestamp > arrival_time
+
+    return ~(skipped_mask | observed_after_arrival) if row_count else pd.Series(
+        dtype=bool, index=delay_df.index
+    )
+
+
 def load_gtfs_realtime_feed(
     url: str = GTFS_REALTIME_URL,
 ) -> gtfs_realtime_pb2.FeedMessage:
@@ -202,7 +235,10 @@ def parse_trip_updates(
 
             rows.append(row)
 
-    return pd.DataFrame(rows)
+    realtime_df = pd.DataFrame(rows)
+    realtime_df["is_prediction"] = compute_is_prediction(realtime_df)
+
+    return realtime_df
 
 
 def load_new_data(
