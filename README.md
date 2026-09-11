@@ -13,11 +13,18 @@ The dataset is documented and saved in
 
 ![Delays in Munich](docs/munich_delays.png)
 
+![Munich trip completeness](docs/munich_trip_completeness.png)
+
 ![Delays Report 2026](docs/munich_delay_statistics.png)
 
 ![Delay comparison by transport mode](docs/delay_comparison.png)
 
 ![Delay comparison by line](docs/line_comparison.png)
+
+The trip completeness reports are stored in
+[data/quality/](data/quality/). They compare scheduled trips with at least
+one stop inside Munich's city boundary against trip instances observed in the
+realtime feed, in 24-hour periods from the first observation onward.
 
 
 ## Sources
@@ -27,6 +34,9 @@ The data used for this project is provided by
 NeTEx dataset provided by DELFI e.V.
 
 The provider states that no guarantee is given regarding the correctness, continuous availability, or completeness of the real-time data contained in the stream. The stream is provided as a beta version.
+
+![Data Completeness](docs/munich_trip_completeness.png)
+
 
 **License:** Creative Commons Attribution 4.0 International (CC BY 4.0)  
 

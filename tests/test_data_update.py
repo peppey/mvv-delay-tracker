@@ -188,6 +188,28 @@ def test_update_realtime_data_deduplicates_by_trip_start_date_stop():
     assert row["agency_id"] == "191"
 
 
+def test_update_realtime_data_keeps_same_trip_stop_for_different_agencies():
+    existing_df = pd.DataFrame({
+        "trip_id": ["trip_123"],
+        "start_date": ["20260909"],
+        "stop_id": ["1001"],
+        "agency_id": ["191"],
+        "departure_delay": [30],
+    })
+    new_df = pd.DataFrame({
+        "trip_id": ["trip_123"],
+        "start_date": ["20260909"],
+        "stop_id": ["1001"],
+        "agency_id": ["364"],
+        "departure_delay": [60],
+    })
+
+    result = update_realtime_data(existing_df, new_df)
+
+    assert len(result) == 2
+    assert set(result["agency_id"]) == {"191", "364"}
+
+
 def test_update_realtime_data_preserves_order():
     existing_df = pd.DataFrame({
         "trip_id": ["trip_123"],

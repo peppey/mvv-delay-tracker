@@ -143,6 +143,14 @@ def update_realtime_data(
         new_df = new_df.copy()
         new_df["agency_name"] = pd.NA
 
+    if "agency_id" not in existing_df.columns:
+        existing_df = existing_df.copy()
+        existing_df["agency_id"] = pd.NA
+
+    if "agency_id" not in new_df.columns:
+        new_df = new_df.copy()
+        new_df["agency_id"] = pd.NA
+
     # Make sure is_prediction exists; treat legacy rows as confirmed
     if "is_prediction" not in existing_df.columns:
         existing_df = existing_df.copy()
@@ -199,7 +207,8 @@ def update_realtime_data(
         subset=[
             "trip_id",
             "start_date",
-            "stop_id"
+            "stop_id",
+            "agency_id",
         ],
         keep="last",
     ).index

@@ -17,6 +17,11 @@ FILES_TO_UPDATE = (
     "calendar.txt",
     "calendar_dates.txt",
 )
+TEMPORARY_FILES = (
+    "stop_times.txt",
+    "calendar.txt",
+    "calendar_dates.txt",
+)
 
 
 def download_static_files(
@@ -99,3 +104,11 @@ def update_static_files(
         temporary_target.replace(target)
 
     return changed_files
+
+
+def remove_temporary_static_files(
+    data_dir: Path = STATIC_DATA_DIR,
+) -> None:
+    """Remove GTFS files that are only needed during completeness checks."""
+    for filename in TEMPORARY_FILES:
+        (data_dir / filename).unlink(missing_ok=True)

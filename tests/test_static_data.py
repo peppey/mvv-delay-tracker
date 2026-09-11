@@ -9,6 +9,7 @@ from mvv_delay_tracker.static.static_data import (
     download_static_files,
     find_changed_files,
     update_static_files,
+    remove_temporary_static_files,
 )
 
 
@@ -99,3 +100,17 @@ def test_update_static_files_only_writes_changed_files(tmp_path: Path):
     assert (tmp_path / "agency.txt").read_bytes() == b"agency"
     assert (tmp_path / "routes.txt").read_bytes() == b"routes"
     assert (tmp_path / "trips.txt").read_bytes() == b"trips"
+
+
+def test_remove_temporary_static_files(tmp_path: Path):
+    (tmp_path / "stop_times.txt").write_bytes(b"stop times")
+    (tmp_path / "calendar.txt").write_bytes(b"calendar")
+    (tmp_path / "calendar_dates.txt").write_bytes(b"calendar dates")
+    (tmp_path / "routes.txt").write_bytes(b"routes")
+
+    remove_temporary_static_files(tmp_path)
+
+    assert not (tmp_path / "stop_times.txt").exists()
+    assert not (tmp_path / "calendar.txt").exists()
+    assert not (tmp_path / "calendar_dates.txt").exists()
+    assert (tmp_path / "routes.txt").exists()

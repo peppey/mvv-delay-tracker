@@ -11,10 +11,25 @@ from mvv_delay_tracker.realtime.data_update import load_existing_realtime_data
 
 COMPLETENESS_PATH = Path("data/quality/munich_trip_completeness.csv")
 COMPLETENESS_PLOT_PATH = Path("docs/munich_trip_completeness.png")
+LINE_COMPLETENESS_PATH = Path(
+    "data/quality/munich_trip_completeness_by_line.csv"
+)
+LINE_COMPLETENESS_PLOT_PATH = Path(
+    "docs/munich_trip_completeness_by_line.png"
+)
 LOCAL_TIMEZONE = "Europe/Berlin"
 REPORT_COLUMNS = [
     "period_start",
     "period_end",
+    "planned_trips",
+    "observed_trips",
+    "missing_trips",
+    "completeness_percent",
+]
+LINE_REPORT_COLUMNS = [
+    "period_start",
+    "period_end",
+    "line",
     "planned_trips",
     "observed_trips",
     "missing_trips",
@@ -38,7 +53,12 @@ def load_munich_schedule(
     )
     trips = pd.read_csv(
         static_data_directory / "trips.txt",
-        usecols=["trip_id", "service_id"],
+        usecols=["trip_id", "service_id", "route_id"],
+        dtype=str,
+    )
+    routes = pd.read_csv(
+        static_data_directory / "routes.txt",
+        usecols=["route_id", "route_short_name"],
         dtype=str,
     )
     munich_stops = pd.read_csv(
@@ -50,13 +70,16 @@ def load_munich_schedule(
         stop_times
         .loc[stop_times["stop_id"].isin(set(munich_stops))]
         .merge(trips, on="trip_id", how="inner")
+        .merge(routes, on="route_id", how="inner")
     )
+    schedule["line"] = schedule["route_short_name"].fillna("Unbekannt")
     schedule["departure_seconds"] = schedule["departure_time"].map(
         _gtfs_time_to_seconds
     )
     return (
-        schedule.groupby(["trip_id", "service_id"], as_index=False)
-        ["departure_seconds"].min()
+        schedule.groupby(
+            ["trip_id", "service_id", "line"], as_index=False
+        )["departure_seconds"].min()
     )
 
 
@@ -138,7 +161,30 @@ def expand_schedule(
     )
     return planned.loc[
         planned["scheduled_departure"].between(start, end, inclusive="left")
-    ][["trip_id", "service_date", "scheduled_departure"]].drop_duplicates()
+    ][
+        ["trip_id", "service_date", "scheduled_departure", "line"]
+    ].drop_duplicates()
+
+
+def _observed_trip_keys(
+    realtime_data: pd.DataFrame,
+    period_start: datetime,
+    period_end: datetime,
+) -> set[str]:
+    observations = realtime_data.copy()
+    observations["observation_timestamp"] = pd.to_datetime(
+        observations["observation_timestamp"], errors="coerce"
+    )
+    observations = observations.loc[
+        observations["observation_timestamp"].between(
+            period_start, period_end, inclusive="both"
+        )
+    ]
+    return set(
+        observations["trip_id"].astype(str)
+        + ":"
+        + observations["start_date"].astype(str)
+    )
 
 
 def calculate_trip_completeness(
@@ -154,19 +200,8 @@ def calculate_trip_completeness(
         + ":"
         + planned["service_date"].astype(str).str.replace("-", "", regex=False)
     )
-    observations = realtime_data.copy()
-    observations["observation_timestamp"] = pd.to_datetime(
-        observations["observation_timestamp"], errors="coerce"
-    )
-    observations = observations.loc[
-        observations["observation_timestamp"].between(
-            period_start, period_end, inclusive="left"
-        )
-    ]
-    observed_keys = set(
-        observations["trip_id"].astype(str)
-        + ":"
-        + observations["start_date"].astype(str)
+    observed_keys = _observed_trip_keys(
+        realtime_data, period_start, period_end
     )
     planned_count = planned["trip_key"].nunique()
     observed_count = len(set(planned["trip_key"]) & observed_keys)
@@ -182,19 +217,59 @@ def calculate_trip_completeness(
     }
 
 
+def calculate_line_completeness(
+    planned_trips: pd.DataFrame,
+    realtime_data: pd.DataFrame,
+    period_start: datetime,
+    period_end: datetime,
+) -> pd.DataFrame:
+    """Count planned, observed, and missing trips separately by line."""
+    if planned_trips.empty:
+        return pd.DataFrame(columns=LINE_REPORT_COLUMNS)
+
+    planned = planned_trips.copy()
+    planned["trip_key"] = (
+        planned["trip_id"].astype(str)
+        + ":"
+        + planned["service_date"].astype(str).str.replace("-", "", regex=False)
+    )
+    observed_keys = _observed_trip_keys(
+        realtime_data, period_start, period_end
+    )
+    planned["observed"] = planned["trip_key"].isin(observed_keys)
+    result = planned.groupby("line", as_index=False).agg(
+        planned_trips=("trip_key", "nunique"),
+        observed_trips=("observed", "sum"),
+    )
+    result["missing_trips"] = (
+        result["planned_trips"] - result["observed_trips"]
+    )
+    result["completeness_percent"] = (
+        100 * result["observed_trips"] / result["planned_trips"]
+    ).round(2)
+    result.insert(0, "period_end", period_end.isoformat(sep=" "))
+    result.insert(0, "period_start", period_start.isoformat(sep=" "))
+    return result[LINE_REPORT_COLUMNS]
+
+
 def build_completeness_report(
     realtime_data: pd.DataFrame,
     static_data_directory: Path = Path("data/static"),
     now: datetime | None = None,
 ) -> pd.DataFrame:
     """Build one report row per elapsed 24-hour period."""
-    timestamps = pd.to_datetime(
+    observation_timestamps = pd.to_datetime(
         realtime_data["observation_timestamp"], errors="coerce"
     ).dropna()
-    if timestamps.empty:
+    departure_times = pd.to_datetime(
+        realtime_data["departure_time"], errors="coerce"
+    ).dropna()
+    if observation_timestamps.empty or departure_times.empty:
         return pd.DataFrame(columns=REPORT_COLUMNS)
-    first = timestamps.min().to_pydatetime().replace(tzinfo=None)
-    last = (now or timestamps.max().to_pydatetime()).replace(tzinfo=None)
+    first = departure_times.min().to_pydatetime().replace(tzinfo=None)
+    last = (now or observation_timestamps.max().to_pydatetime()).replace(
+        tzinfo=None
+    )
     schedule = load_munich_schedule(static_data_directory)
     rows = []
     period_start = first
@@ -208,6 +283,41 @@ def build_completeness_report(
         ))
         period_start += timedelta(hours=24)
     return pd.DataFrame(rows, columns=REPORT_COLUMNS)
+
+
+def build_line_completeness_report(
+    realtime_data: pd.DataFrame,
+    static_data_directory: Path = Path("data/static"),
+    now: datetime | None = None,
+) -> pd.DataFrame:
+    """Build the completeness report grouped by line and 24-hour period."""
+    observation_timestamps = pd.to_datetime(
+        realtime_data["observation_timestamp"], errors="coerce"
+    ).dropna()
+    departure_times = pd.to_datetime(
+        realtime_data["departure_time"], errors="coerce"
+    ).dropna()
+    if observation_timestamps.empty or departure_times.empty:
+        return pd.DataFrame(columns=LINE_REPORT_COLUMNS)
+    first = departure_times.min().to_pydatetime().replace(tzinfo=None)
+    last = (now or observation_timestamps.max().to_pydatetime()).replace(
+        tzinfo=None
+    )
+    schedule = load_munich_schedule(static_data_directory)
+    reports = []
+    period_start = first
+    while period_start < last:
+        period_end = min(period_start + timedelta(hours=24), last)
+        planned = expand_schedule(
+            schedule, static_data_directory, period_start, period_end
+        )
+        reports.append(calculate_line_completeness(
+            planned, realtime_data, period_start, period_end
+        ))
+        period_start += timedelta(hours=24)
+    if not reports:
+        return pd.DataFrame(columns=LINE_REPORT_COLUMNS)
+    return pd.concat(reports, ignore_index=True)[LINE_REPORT_COLUMNS]
 
 
 def save_completeness_report(
@@ -229,22 +339,56 @@ def plot_completeness(
         axis.text(0.5, 0.5, "Keine Realtime-Daten vorhanden", ha="center")
         axis.set_axis_off()
     else:
-        labels = pd.to_datetime(report["period_start"]).dt.strftime("%d.%m. %H:%M")
         x = range(len(report))
         width = 0.36
-        axis.bar([value - width / 2 for value in x], report["planned_trips"],
-                 width, label="Geplant", color="#315a7d")
-        axis.bar([value + width / 2 for value in x], report["observed_trips"],
-                 width, label="Im Feed", color="#e07a5f")
-        axis.set_xticks(list(x), labels, rotation=30, ha="right")
+        planned_bars = axis.bar(
+            [value - width / 2 for value in x],
+            report["planned_trips"],
+            width,
+            label="Geplant",
+            color="#315a7d",
+        )
+        observed_bars = axis.bar(
+            [value + width / 2 for value in x],
+            report["observed_trips"],
+            width,
+            label="Im Feed",
+            color="#e07a5f",
+        )
+        axis.set_xticks([])
         axis.set_ylabel("Anzahl Fahrten")
         axis.set_title("Vollständigkeit der Münchner Fahrten im Realtime-Feed")
         axis.legend(frameon=False)
         axis.grid(axis="y", alpha=0.2)
-        for index, row in report.iterrows():
-            axis.text(index, row["planned_trips"],
-                      f'{row["completeness_percent"]:.1f} %',
-                      ha="center", va="bottom", fontsize=9)
+        axis.bar_label(planned_bars, fmt="%d", padding=3)
+        axis.bar_label(observed_bars, fmt="%d", padding=3)
+    figure.tight_layout()
+    figure.savefig(output_path, dpi=180)
+    plt.close(figure)
+
+
+def plot_line_completeness(
+    report: pd.DataFrame,
+    output_path: Path = LINE_COMPLETENESS_PLOT_PATH,
+) -> None:
+    """Plot the lines with the most missing trip instances."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    figure, axis = plt.subplots(figsize=(11, 7))
+    if report.empty:
+        axis.text(0.5, 0.5, "Keine Realtime-Daten vorhanden", ha="center")
+        axis.set_axis_off()
+    else:
+        summary = (
+            report.groupby("line", as_index=False)["missing_trips"]
+            .sum()
+            .sort_values("missing_trips", ascending=True)
+            .tail(20)
+        )
+        axis.barh(summary["line"], summary["missing_trips"], color="#e07a5f")
+        axis.set_xlabel("Fehlende Fahrten")
+        axis.set_ylabel("Linie")
+        axis.set_title("Fehlende Münchner Fahrten nach Linie")
+        axis.grid(axis="x", alpha=0.2)
     figure.tight_layout()
     figure.savefig(output_path, dpi=180)
     plt.close(figure)
@@ -262,6 +406,11 @@ def run_data_completeness_check(
         realtime_data,
         static_data_directory,
     )
+    line_report = build_line_completeness_report(
+        realtime_data,
+        static_data_directory,
+    )
     save_completeness_report(report, output_path)
+    save_completeness_report(line_report, LINE_COMPLETENESS_PATH)
     plot_completeness(report, plot_path)
     return report
