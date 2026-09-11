@@ -1,0 +1,1 @@
+run_timestamp,trip_id,start_date,stop_sequence,scheduled_departure,realtime_departure,departure_delay_seconds,difference_seconds
