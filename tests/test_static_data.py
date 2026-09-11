@@ -9,6 +9,7 @@ from mvv_delay_tracker.static.static_data import (
     download_static_files,
     find_changed_files,
     update_static_files,
+    remove_temporary_static_files,
 )
 
 
@@ -23,6 +24,9 @@ def make_archive(
         archive.writestr("gtfs/routes.txt", routes)
         if trips is not None:
             archive.writestr("gtfs/trips.txt", trips)
+        archive.writestr("gtfs/stop_times.txt", b"stop times")
+        archive.writestr("gtfs/calendar.txt", b"calendar")
+        archive.writestr("gtfs/calendar_dates.txt", b"calendar dates")
         archive.writestr("gtfs/stops.txt", b"stops")
     return buffer.getvalue()
 
@@ -43,6 +47,9 @@ def test_download_static_files(monkeypatch):
         "agency.txt": b"agency",
         "routes.txt": b"routes",
         "trips.txt": b"trips",
+        "stop_times.txt": b"stop times",
+        "calendar.txt": b"calendar",
+        "calendar_dates.txt": b"calendar dates",
     }
 
 
@@ -93,3 +100,17 @@ def test_update_static_files_only_writes_changed_files(tmp_path: Path):
     assert (tmp_path / "agency.txt").read_bytes() == b"agency"
     assert (tmp_path / "routes.txt").read_bytes() == b"routes"
     assert (tmp_path / "trips.txt").read_bytes() == b"trips"
+
+
+def test_remove_temporary_static_files(tmp_path: Path):
+    (tmp_path / "stop_times.txt").write_bytes(b"stop times")
+    (tmp_path / "calendar.txt").write_bytes(b"calendar")
+    (tmp_path / "calendar_dates.txt").write_bytes(b"calendar dates")
+    (tmp_path / "routes.txt").write_bytes(b"routes")
+
+    remove_temporary_static_files(tmp_path)
+
+    assert not (tmp_path / "stop_times.txt").exists()
+    assert not (tmp_path / "calendar.txt").exists()
+    assert not (tmp_path / "calendar_dates.txt").exists()
+    assert (tmp_path / "routes.txt").exists()

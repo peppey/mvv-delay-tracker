@@ -23,6 +23,7 @@ EXPECTED_COLUMNS = [
     "departure_delay",
     "arrival_time",
     "arrival_delay",
+    "is_prediction",
 ]
 
 
@@ -45,6 +46,7 @@ def test_load_existing_realtime_data(tmp_path):
         "departure_delay": [60],
         "arrival_time": [1757411940],
         "arrival_delay": [30],
+        "is_prediction": [False],
     })
 
     df.to_parquet(parquet_path, index=False)
@@ -186,6 +188,28 @@ def test_update_realtime_data_deduplicates_by_trip_start_date_stop():
     assert row["agency_id"] == "191"
 
 
+def test_update_realtime_data_keeps_same_trip_stop_for_different_agencies():
+    existing_df = pd.DataFrame({
+        "trip_id": ["trip_123"],
+        "start_date": ["20260909"],
+        "stop_id": ["1001"],
+        "agency_id": ["191"],
+        "departure_delay": [30],
+    })
+    new_df = pd.DataFrame({
+        "trip_id": ["trip_123"],
+        "start_date": ["20260909"],
+        "stop_id": ["1001"],
+        "agency_id": ["364"],
+        "departure_delay": [60],
+    })
+
+    result = update_realtime_data(existing_df, new_df)
+
+    assert len(result) == 2
+    assert set(result["agency_id"]) == {"191", "364"}
+
+
 def test_update_realtime_data_preserves_order():
     existing_df = pd.DataFrame({
         "trip_id": ["trip_123"],
@@ -215,6 +239,54 @@ def test_update_realtime_data_preserves_order():
         "191",
         "364",
     ]
+
+
+def test_update_realtime_data_prediction_is_replaced_by_confirmation():
+    existing_df = pd.DataFrame({
+        "trip_id": ["trip_123"],
+        "start_date": ["20260909"],
+        "stop_id": ["1001"],
+        "departure_delay": [30],
+        "is_prediction": [True],
+    })
+
+    new_df = pd.DataFrame({
+        "trip_id": ["trip_123"],
+        "start_date": ["20260909"],
+        "stop_id": ["1001"],
+        "departure_delay": [45],
+        "is_prediction": [False],
+    })
+
+    result = update_realtime_data(existing_df, new_df)
+
+    assert len(result) == 1
+    assert result.iloc[0]["departure_delay"] == 45
+    assert result.iloc[0]["is_prediction"] == False
+
+
+def test_update_realtime_data_confirmation_is_not_replaced_by_prediction():
+    existing_df = pd.DataFrame({
+        "trip_id": ["trip_123"],
+        "start_date": ["20260909"],
+        "stop_id": ["1001"],
+        "departure_delay": [30],
+        "is_prediction": [False],
+    })
+
+    new_df = pd.DataFrame({
+        "trip_id": ["trip_123"],
+        "start_date": ["20260909"],
+        "stop_id": ["1001"],
+        "departure_delay": [999],
+        "is_prediction": [True],
+    })
+
+    result = update_realtime_data(existing_df, new_df)
+
+    assert len(result) == 1
+    assert result.iloc[0]["departure_delay"] == 30
+    assert result.iloc[0]["is_prediction"] == False
 
 
 def test_save_realtime_data(tmp_path):

@@ -1,6 +1,8 @@
 import pandas as pd
 from pathlib import Path
 
+from mvv_delay_tracker.realtime.data_loading import compute_is_prediction
+
 
 def load_existing_realtime_data(
     parquet_path: str = "data/realtime/mvv_realtime.parquet",
@@ -30,6 +32,14 @@ def load_existing_realtime_data(
             existing_df["agency_name"] = (
                 existing_df["agency_id"].astype(str).map(agency_names)
                 .fillna(existing_df["agency_name"])
+            )
+
+        # Backfill is_prediction for data saved before this column existed
+        if "is_prediction" not in existing_df.columns:
+            existing_df["is_prediction"] = compute_is_prediction(existing_df)
+        else:
+            existing_df["is_prediction"] = (
+                existing_df["is_prediction"].astype(bool)
             )
 
         # Convert trip_schedule_relationship
@@ -93,6 +103,7 @@ def load_existing_realtime_data(
                 "departure_delay",
                 "arrival_time",
                 "arrival_delay",
+                "is_prediction",
             ]
         )
 
@@ -132,6 +143,23 @@ def update_realtime_data(
         new_df = new_df.copy()
         new_df["agency_name"] = pd.NA
 
+    if "agency_id" not in existing_df.columns:
+        existing_df = existing_df.copy()
+        existing_df["agency_id"] = pd.NA
+
+    if "agency_id" not in new_df.columns:
+        new_df = new_df.copy()
+        new_df["agency_id"] = pd.NA
+
+    # Make sure is_prediction exists; treat legacy rows as confirmed
+    if "is_prediction" not in existing_df.columns:
+        existing_df = existing_df.copy()
+        existing_df["is_prediction"] = False
+
+    if "is_prediction" not in new_df.columns:
+        new_df = new_df.copy()
+        new_df["is_prediction"] = False
+
     existing_df = existing_df.copy()
     new_df = new_df.copy()
 
@@ -156,6 +184,9 @@ def update_realtime_data(
         .astype("string")
     )
 
+    existing_df["is_prediction"] = existing_df["is_prediction"].astype(bool)
+    new_df["is_prediction"] = new_df["is_prediction"].astype(bool)
+
     combined_df = pd.concat(
         [
             existing_df,
@@ -164,16 +195,26 @@ def update_realtime_data(
         ignore_index=True
     )
 
+    # A confirmed observation (is_prediction == False) always replaces a
+    # prediction for the same trip/stop. Among observations with the same
+    # is_prediction status, the most recently added one wins.
+    ranked_df = combined_df.sort_values(
+        "is_prediction",
+        ascending=False,
+        kind="stable",
+    )
+    kept_index = ranked_df.drop_duplicates(
+        subset=[
+            "trip_id",
+            "start_date",
+            "stop_id",
+            "agency_id",
+        ],
+        keep="last",
+    ).index
+
     combined_df = (
-        combined_df
-        .drop_duplicates(
-            subset=[
-                "trip_id",
-                "start_date",
-                "stop_id"
-            ],
-            keep="last"
-        )
+        combined_df[combined_df.index.isin(kept_index)]
         .reset_index(drop=True)
     )
 
