@@ -1405,7 +1405,7 @@ def create_delay_statistics_plot(
     figure.text(
         0.5,
         0.035,
-        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 9.9.2026',
+        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 11.9.2026',
         ha="center",
         va="center",
         fontsize=9,
