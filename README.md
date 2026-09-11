@@ -3,6 +3,12 @@
 This project is creating a publicly available dataset of MVV and MVG delays per station by running a cron job regularly to examine the real-time data feed and compare it with the scheduled timetables.
 
 
+## Data
+
+The dataset is documented and saved in
+[this folder](data/realtime/).
+
+
 ## Visualizations
 
 ![Delays in Munich](docs/munich_delays.png)
@@ -14,7 +20,7 @@ This project is creating a publicly available dataset of MVV and MVG delays per 
 ![Delay comparison by line](docs/line_comparison.png)
 
 
-## Data
+## Sources
 
 The data used for this project is provided by
 [GTFS für Deutschland](https://www.gtfs.de/) and is based on the
