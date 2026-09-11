@@ -27,8 +27,31 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      - name: Get static GTFS version
+        id: gtfs
+        run: |
+          headers="$(curl --fail --silent --show-error --head https://download.gtfs.de/germany/nv_free/latest.zip)"
+          etag="$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1) == "etag" {print $2}' | tr -d '\r"')"
+          last_modified="$(printf '%s\n' "$headers" | awk -F': ' 'tolower($1) == "last-modified" {print $2}' | tr -d '\r')"
+          version="${etag:-$last_modified}"
+          version="$(printf '%s' "$version" | sed 's/[^A-Za-z0-9._-]/-/g')"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Restore static GTFS cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/static/stop_times.txt
+            data/static/calendar.txt
+            data/static/calendar_dates.txt
+          key: gtfs-${{ steps.gtfs.outputs.version }}
+          restore-keys: |
+            gtfs-
+
       - name: Update static GTFS data
         run: uv run python scripts/update_static_data.py
+        env:
+          KEEP_TEMPORARY_STATIC_FILES: "true"
 
       - name: Check realtime departure data quality
         run: uv run python scripts/check_realtime_data_quality.py
@@ -37,7 +60,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/static/agency.txt data/static/routes.txt data/static/trips.txt data/static/munich_stops.csv
+          git add data/static/.gtfs_metadata.json data/static/agency.txt data/static/routes.txt data/static/trips.txt data/static/munich_stops.csv
           git add data/quality/realtime_departure_failures.csv
           git add data/quality/munich_trip_completeness.csv
           git add docs/munich_trip_completeness.png
