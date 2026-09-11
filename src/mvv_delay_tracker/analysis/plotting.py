@@ -430,7 +430,7 @@ def mark_maximum_delay_station(
 
         annotation_text = (
             f'{station["stop_name"]}: '
-            f'Durchschnittlich '
+            f'Ø '
             f'{station["delay_minutes"]:.1f} '
             f'Minuten Verspätung'
         )
