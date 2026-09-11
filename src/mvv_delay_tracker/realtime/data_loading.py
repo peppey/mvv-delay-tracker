@@ -64,6 +64,16 @@ def preprocess_gtfs(
         },
     )
 
+    agency_df = pd.read_csv(
+        static_data_directory / "agency.txt",
+        dtype={"agency_id": str},
+    )
+    agency_names = (
+        agency_df
+        .set_index("agency_id")["agency_name"]
+        .to_dict()
+    )
+
     trips_df = pd.read_csv(
         static_data_directory / "trips.txt",
         dtype={
@@ -102,6 +112,9 @@ def preprocess_gtfs(
         trip_info[trip["trip_id"]] = {
             "line": route_info[route_id]["route_short_name"],
             "agency_id": route_info[route_id]["agency_id"],
+            "agency_name": agency_names.get(
+                route_info[route_id]["agency_id"]
+            ),
         }
 
     stop_names = (
@@ -169,6 +182,7 @@ def parse_trip_updates(
                     stop_schedule_relationship,
                 "line": info["line"],
                 "agency_id": info["agency_id"],
+                "agency_name": info["agency_name"],
                 "stop_id": stop_id,
                 "stop_name": stop_names[stop_id],
                 "stop_sequence": stop.stop_sequence,

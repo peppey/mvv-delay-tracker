@@ -9,7 +9,7 @@ import requests
 
 STATIC_DATA_URL = "https://download.gtfs.de/germany/nv_free/latest.zip"
 STATIC_DATA_DIR = Path("data/static")
-FILES_TO_UPDATE = ("routes.txt", "trips.txt")
+FILES_TO_UPDATE = ("agency.txt", "routes.txt", "trips.txt")
 
 
 def download_static_files(

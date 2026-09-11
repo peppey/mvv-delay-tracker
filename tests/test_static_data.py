@@ -13,11 +13,13 @@ from mvv_delay_tracker.static.static_data import (
 
 
 def make_archive(
+    agency: bytes = b"agency",
     routes: bytes = b"routes",
     trips: bytes | None = b"trips",
 ) -> bytes:
     buffer = BytesIO()
     with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("gtfs/agency.txt", agency)
         archive.writestr("gtfs/routes.txt", routes)
         if trips is not None:
             archive.writestr("gtfs/trips.txt", trips)
@@ -38,6 +40,7 @@ def test_download_static_files(monkeypatch):
     )
 
     assert download_static_files("https://example.test/feed.zip") == {
+        "agency.txt": b"agency",
         "routes.txt": b"routes",
         "trips.txt": b"trips",
     }
@@ -64,9 +67,13 @@ def test_find_changed_files(tmp_path: Path):
     (tmp_path / "trips.txt").write_bytes(b"trips")
 
     assert find_changed_files(
-        {"routes.txt": b"routes", "trips.txt": b"trips"},
+        {
+            "agency.txt": b"agency",
+            "routes.txt": b"routes",
+            "trips.txt": b"trips",
+        },
         tmp_path,
-    ) == ["routes.txt"]
+    ) == ["agency.txt", "routes.txt"]
 
 
 def test_update_static_files_only_writes_changed_files(tmp_path: Path):
@@ -74,10 +81,15 @@ def test_update_static_files_only_writes_changed_files(tmp_path: Path):
     (tmp_path / "trips.txt").write_bytes(b"trips")
 
     changed_files = update_static_files(
-        {"routes.txt": b"routes", "trips.txt": b"trips"},
+        {
+            "agency.txt": b"agency",
+            "routes.txt": b"routes",
+            "trips.txt": b"trips",
+        },
         tmp_path,
     )
 
-    assert changed_files == ["routes.txt"]
+    assert changed_files == ["agency.txt", "routes.txt"]
+    assert (tmp_path / "agency.txt").read_bytes() == b"agency"
     assert (tmp_path / "routes.txt").read_bytes() == b"routes"
     assert (tmp_path / "trips.txt").read_bytes() == b"trips"
