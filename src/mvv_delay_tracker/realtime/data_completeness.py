@@ -335,35 +335,57 @@ def plot_completeness(
     """Plot planned and observed Munich trips for each report period."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     figure, axis = plt.subplots(figsize=(11, 6))
+    figure.patch.set_facecolor("#FFFFFF")
+    axis.set_facecolor("#FFFFFF")
     if report.empty:
         axis.text(0.5, 0.5, "Keine Realtime-Daten vorhanden", ha="center")
         axis.set_axis_off()
     else:
+        report = report.copy()
+        report["period_start"] = pd.to_datetime(report["period_start"])
         x = range(len(report))
-        width = 0.36
+        width = 0.34
         planned_bars = axis.bar(
             [value - width / 2 for value in x],
             report["planned_trips"],
             width,
             label="Geplant",
-            color="#315a7d",
+            color="#00695C",
         )
         observed_bars = axis.bar(
             [value + width / 2 for value in x],
             report["observed_trips"],
             width,
             label="Im Feed",
-            color="#e07a5f",
+            color="#1976D2",
         )
-        axis.set_xticks([])
+        axis.set_xticks(list(x))
+        axis.set_xticklabels(
+            report["period_start"].dt.strftime("%d.%m.%Y"),
+        )
         axis.set_ylabel("Anzahl Fahrten")
-        axis.set_title("Vollständigkeit der Münchner Fahrten im Realtime-Feed")
+        axis.set_title(
+            "VOLLSTÄNDIGKEIT DER MÜNCHNER FAHRTEN - REALTIME-FEED",
+            fontsize=14,
+            fontweight="bold",
+            color="#263238",
+            pad=22,
+        )
+        axis.tick_params(axis="both", colors="#546E7A")
+        axis.spines[["top", "right", "left"]].set_visible(False)
+        axis.spines["bottom"].set_color("#CFD8DC")
         axis.legend(frameon=False)
-        axis.grid(axis="y", alpha=0.2)
-        axis.bar_label(planned_bars, fmt="%d", padding=3)
-        axis.bar_label(observed_bars, fmt="%d", padding=3)
+        axis.grid(axis="y", color="#E0E6ED", linewidth=0.8)
+        axis.set_axisbelow(True)
+        axis.bar_label(planned_bars, fmt="%d", padding=3, color="#546E7A")
+        axis.bar_label(observed_bars, fmt="%d", padding=3, color="#546E7A")
     figure.tight_layout()
-    figure.savefig(output_path, dpi=180)
+    figure.savefig(
+        output_path,
+        dpi=120,
+        bbox_inches="tight",
+        facecolor=figure.get_facecolor(),
+    )
     plt.close(figure)
 
 
