@@ -53,6 +53,26 @@ def test_download_static_files(monkeypatch):
     }
 
 
+def test_download_static_files_can_include_stops(monkeypatch):
+    class Response:
+        content = make_archive()
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(
+        "mvv_delay_tracker.static.static_data.requests.get",
+        Mock(return_value=Response()),
+    )
+
+    files = download_static_files(
+        "https://example.test/feed.zip",
+        include_stops=True,
+    )
+
+    assert files["stops.txt"] == b"stops"
+
+
 def test_download_static_files_rejects_missing_file(monkeypatch):
     class Response:
         content = make_archive(trips=None)

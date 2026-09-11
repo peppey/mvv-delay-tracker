@@ -26,6 +26,7 @@ TEMPORARY_FILES = (
 
 def download_static_files(
     url: str = STATIC_DATA_URL,
+    include_stops: bool = False,
 ) -> dict[str, bytes]:
     """Download the selected GTFS files from the remote archive."""
     response = requests.get(url, timeout=120)
@@ -38,9 +39,10 @@ def download_static_files(
             for name in archive.namelist()
             if not name.endswith("/")
         }
+        filenames = FILES_TO_UPDATE + (("stops.txt",) if include_stops else ())
         missing_files = [
             filename
-            for filename in FILES_TO_UPDATE
+            for filename in filenames
             if filename not in archive_files
         ]
         if missing_files:
@@ -51,7 +53,7 @@ def download_static_files(
 
         return {
             filename: archive.read(archive_files[filename])
-            for filename in FILES_TO_UPDATE
+            for filename in filenames
         }
 
 
