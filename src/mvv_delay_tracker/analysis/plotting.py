@@ -1560,7 +1560,7 @@ def generate_plot(
     figure.text(
         0.02,
         0.5,
-        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 9.9.26',
+        f'Datenbasis: {statistics["number_of_trips"]:,} Fahrten seit dem 11.9.26',
         ha="center",
         va="center",
         fontsize=9,
