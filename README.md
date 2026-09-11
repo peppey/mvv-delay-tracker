@@ -1,8 +1,9 @@
-# MVV Delay Tracker
+# MVV and MVG Delay Tracker
 
-This project is creating a publicly available dataset of MVV delays per station by running a cron job regularly to examine real-time departure data and compare scheduled departure times with actual departure times.
+This project is creating a publicly available dataset of MVV and MVG delays per station by running a cron job regularly to examine the real-time data feed and compare it with the scheduled timetables.
 
-## Delays
+
+## Visualizations
 
 ![Delays in Munich](docs/munich_delays.png)
 
@@ -13,12 +14,18 @@ This project is creating a publicly available dataset of MVV delays per station 
 ![Delay comparison by line](docs/line_comparison.png)
 
 
-## Licence
+## Data
 
 The data used for this project is provided by
 [GTFS für Deutschland](https://www.gtfs.de/) and is based on the
 NeTEx dataset provided by DELFI e.V.
 
+The provider states that no guarantee is given regarding the correctness, continuous availability, or completeness of the real-time data contained in the stream. The stream is provided as a beta version.
+
 **License:** Creative Commons Attribution 4.0 International (CC BY 4.0)  
-**Source:** https://www.gtfs.de/en/feeds/de_nv/  
+
+**Sources:** https://www.gtfs.de/en/feeds/de_nv/, https://realtime.gtfs.de/realtime-free.pb
+
+**First accessed:** September 2026
+
 **Last accessed:** September 2026
