@@ -13,8 +13,6 @@ The dataset is documented and saved in
 
 ![Delays in Munich](docs/munich_delays.png)
 
-![Munich trip completeness](docs/munich_trip_completeness.png)
-
 ![Delays Report 2026](docs/munich_delay_statistics.png)
 
 ![Delay comparison by transport mode](docs/delay_comparison.png)
