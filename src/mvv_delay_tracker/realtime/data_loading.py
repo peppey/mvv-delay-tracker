@@ -1,11 +1,21 @@
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 from google.transit import gtfs_realtime_pb2
 
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
+LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
+
+
+def _epoch_to_local_datetime(timestamp: int) -> datetime:
+    """Convert a GTFS-RT UTC epoch timestamp to German local time."""
+    return datetime.fromtimestamp(
+        timestamp,
+        tz=timezone.utc,
+    ).astimezone(LOCAL_TIMEZONE).replace(tzinfo=None)
 
 
 def load_gtfs_realtime_feed(
@@ -165,13 +175,13 @@ def parse_trip_updates(
             }
 
             if stop.HasField("departure"):
-                row["departure_time"] = datetime.fromtimestamp(
+                row["departure_time"] = _epoch_to_local_datetime(
                     stop.departure.time
                 )
                 row["departure_delay"] = stop.departure.delay
 
             if stop.HasField("arrival"):
-                row["arrival_time"] = datetime.fromtimestamp(
+                row["arrival_time"] = _epoch_to_local_datetime(
                     stop.arrival.time
                 )
                 row["arrival_delay"] = stop.arrival.delay
@@ -188,7 +198,9 @@ def load_new_data(
     Load and process the current MVV real-time data.
     """
 
-    observation_timestamp = datetime.now()
+    observation_timestamp = datetime.now(LOCAL_TIMEZONE).replace(
+        tzinfo=None
+    )
 
     feed = load_gtfs_realtime_feed()
 

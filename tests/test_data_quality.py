@@ -14,6 +14,8 @@ def make_observation(departure_time: str, observed_at: str) -> pd.DataFrame:
     return pd.DataFrame({
         "trip_id": ["trip-1"],
         "start_date": ["20260911"],
+        "agency_id": ["agency-1"],
+        "line": ["S1"],
         "stop_sequence": [1],
         "observation_timestamp": [observed_at],
         "departure_time": [departure_time],
@@ -24,6 +26,8 @@ def make_observation(departure_time: str, observed_at: str) -> pd.DataFrame:
 def test_find_departure_failures_accepts_planned_time_plus_delay():
     scheduled = pd.DataFrame({
         "trip_id": ["trip-1"],
+        "agency_id": ["agency-1"],
+        "line": ["S1"],
         "stop_sequence": [1],
         "departure_time": ["08:00:00"],
     })
@@ -43,6 +47,8 @@ def test_find_departure_failures_accepts_planned_time_plus_delay():
 def test_find_departure_failures_records_mismatch():
     scheduled = pd.DataFrame({
         "trip_id": ["trip-1"],
+        "agency_id": ["agency-1"],
+        "line": ["S1"],
         "stop_sequence": [1],
         "departure_time": ["08:00:00"],
     })
@@ -63,6 +69,8 @@ def test_find_departure_failures_records_mismatch():
 def test_find_departure_failures_ignores_observations_older_than_24_hours():
     scheduled = pd.DataFrame({
         "trip_id": ["trip-1"],
+        "agency_id": ["agency-1"],
+        "line": ["S1"],
         "stop_sequence": [1],
         "departure_time": ["08:00:00"],
     })

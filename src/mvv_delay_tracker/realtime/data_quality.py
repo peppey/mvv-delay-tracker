@@ -30,12 +30,38 @@ def _gtfs_time_to_seconds(value: str) -> int:
     return hours * 3600 + minutes * 60 + seconds
 
 
-def load_stop_times(stop_times_bytes: bytes) -> pd.DataFrame:
+def _to_local_naive(series: pd.Series) -> pd.Series:
+    parsed = pd.to_datetime(series, errors="coerce")
+    if parsed.dt.tz is None:
+        return parsed
+    return parsed.dt.tz_convert(LOCAL_TIMEZONE).dt.tz_localize(None)
+
+
+def load_stop_times(
+    stop_times_bytes: bytes,
+    static_data_directory: Path = Path("data/static"),
+) -> pd.DataFrame:
     """Load the fields needed to compare scheduled departures."""
-    return pd.read_csv(
+    stop_times = pd.read_csv(
         BytesIO(stop_times_bytes),
         usecols=["trip_id", "stop_sequence", "departure_time"],
         dtype={"trip_id": str, "stop_sequence": "Int64"},
+    )
+    trips = pd.read_csv(
+        static_data_directory / "trips.txt",
+        usecols=["trip_id", "route_id"],
+        dtype=str,
+    )
+    routes = pd.read_csv(
+        static_data_directory / "routes.txt",
+        usecols=["route_id", "agency_id", "route_short_name"],
+        dtype=str,
+    )
+    return (
+        stop_times
+        .merge(trips, on="trip_id", how="inner")
+        .merge(routes, on="route_id", how="inner")
+        .rename(columns={"route_short_name": "line"})
     )
 
 
@@ -48,22 +74,26 @@ def find_departure_failures(
 ) -> pd.DataFrame:
     """Find recent observations that disagree with scheduled time plus delay."""
     observations = realtime_data.copy()
-    observations["observation_timestamp"] = pd.to_datetime(
-        observations["observation_timestamp"],
-        errors="coerce",
-        utc=True,
+    observations["observation_timestamp"] = _to_local_naive(
+        observations["observation_timestamp"]
     )
-    observations["departure_time"] = pd.to_datetime(
-        observations["departure_time"],
-        errors="coerce",
-        utc=True,
+    observations["departure_time"] = _to_local_naive(
+        observations["departure_time"]
     )
-    window_start_utc = pd.Timestamp(window_start).tz_convert("UTC")
-    run_timestamp_utc = pd.Timestamp(run_timestamp).tz_convert("UTC")
+    window_start_local = pd.Timestamp(window_start)
+    run_timestamp_local = pd.Timestamp(run_timestamp)
+    if window_start_local.tzinfo is not None:
+        window_start_local = window_start_local.tz_convert(
+            LOCAL_TIMEZONE
+        ).tz_localize(None)
+    if run_timestamp_local.tzinfo is not None:
+        run_timestamp_local = run_timestamp_local.tz_convert(
+            LOCAL_TIMEZONE
+        ).tz_localize(None)
     observations = observations.loc[
         observations["observation_timestamp"].between(
-            window_start_utc,
-            run_timestamp_utc,
+            window_start_local,
+            run_timestamp_local,
             inclusive="both",
         )
     ].dropna(
@@ -81,14 +111,21 @@ def find_departure_failures(
     scheduled["scheduled_seconds"] = scheduled["departure_time"].map(
         _gtfs_time_to_seconds
     )
-    scheduled = scheduled.set_index(["trip_id", "stop_sequence"])
+    scheduled = scheduled.set_index(
+        ["trip_id", "agency_id", "line", "stop_sequence"]
+    )
     failures: list[dict[str, object]] = []
 
     for _, observation in observations.iterrows():
         trip_id = str(observation["trip_id"])
         start_date = str(observation["start_date"])
         service_date = datetime.strptime(start_date, "%Y%m%d").date()
-        key = (trip_id, int(observation["stop_sequence"]))
+        key = (
+            trip_id,
+            str(observation["agency_id"]),
+            str(observation["line"]),
+            int(observation["stop_sequence"]),
+        )
         if key not in scheduled.index:
             continue
 
@@ -97,7 +134,6 @@ def find_departure_failures(
         expected_timestamp = datetime.combine(
             service_date,
             datetime.min.time(),
-            tzinfo=LOCAL_TIMEZONE,
         ) + timedelta(seconds=scheduled_seconds + departure_delay)
         actual_timestamp = observation["departure_time"].to_pydatetime()
         difference_seconds = int(

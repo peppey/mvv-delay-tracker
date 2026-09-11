@@ -7,8 +7,20 @@ from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
 from matplotlib.colors import LinearSegmentedColormap
 import pandas as pd
+from zoneinfo import ZoneInfo
 
 from mvv_delay_tracker.analysis.geographic import wgs84_to_utm32
+
+
+LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
+
+
+def _to_local_naive(series: pd.Series) -> pd.Series:
+    """Interpret stored timestamps consistently as Europe/Berlin time."""
+    parsed = pd.to_datetime(series, errors="coerce")
+    if parsed.dt.tz is None:
+        return parsed
+    return parsed.dt.tz_convert(LOCAL_TIMEZONE).dt.tz_localize(None)
 
 
 # ============================================================
@@ -66,15 +78,11 @@ def filter_observed_after_arrival(
 
     df = delay_df.copy()
 
-    df["observation_timestamp"] = pd.to_datetime(
-        df["observation_timestamp"],
-        errors="coerce"
+    df["observation_timestamp"] = _to_local_naive(
+        df["observation_timestamp"]
     )
 
-    df["arrival_time"] = pd.to_datetime(
-        df["arrival_time"],
-        errors="coerce"
-    )
+    df["arrival_time"] = _to_local_naive(df["arrival_time"])
 
     skipped_mask = (
         df["stop_schedule_relationship"] == "SKIPPED"
@@ -1067,9 +1075,8 @@ def create_delay_heatmap(
         )
 
     heatmap_df = delay_df[required_columns].copy()
-    heatmap_df["observation_timestamp"] = pd.to_datetime(
-        heatmap_df["observation_timestamp"],
-        errors="coerce",
+    heatmap_df["observation_timestamp"] = _to_local_naive(
+        heatmap_df["observation_timestamp"]
     )
     heatmap_df["delay_minutes"] = (
         pd.to_numeric(heatmap_df["departure_delay"], errors="coerce") / 60

@@ -2,6 +2,7 @@ import pandas as pd
 import pytest
 from unittest.mock import Mock, patch
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from mvv_delay_tracker.realtime.data_loading import (
     load_gtfs_realtime_feed,
@@ -255,6 +256,10 @@ def test_parse_trip_updates_parses_valid_trip(
     assert row["stop_id"] == "1001"
     assert row["stop_name"] == "Marienplatz"
     assert row["stop_sequence"] == 1
+    assert row["departure_time"] == datetime.fromtimestamp(
+        1757412000,
+        tz=ZoneInfo("UTC"),
+    ).astimezone(ZoneInfo("Europe/Berlin")).replace(tzinfo=None)
     assert row["departure_delay"] == 60
     assert row["observation_timestamp"] == observation_timestamp
 
