@@ -23,6 +23,9 @@ def make_archive(
         archive.writestr("gtfs/routes.txt", routes)
         if trips is not None:
             archive.writestr("gtfs/trips.txt", trips)
+        archive.writestr("gtfs/stop_times.txt", b"stop times")
+        archive.writestr("gtfs/calendar.txt", b"calendar")
+        archive.writestr("gtfs/calendar_dates.txt", b"calendar dates")
         archive.writestr("gtfs/stops.txt", b"stops")
     return buffer.getvalue()
 
@@ -43,6 +46,9 @@ def test_download_static_files(monkeypatch):
         "agency.txt": b"agency",
         "routes.txt": b"routes",
         "trips.txt": b"trips",
+        "stop_times.txt": b"stop times",
+        "calendar.txt": b"calendar",
+        "calendar_dates.txt": b"calendar dates",
     }
 
 

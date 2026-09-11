@@ -6,6 +6,9 @@ from mvv_delay_tracker.static.static_data import (
     update_static_files,
 )
 from mvv_delay_tracker.static.static_stops import update_munich_stops
+from mvv_delay_tracker.realtime.data_completeness import (
+    run_data_completeness_check,
+)
 
 
 def main() -> None:
@@ -20,6 +23,9 @@ def main() -> None:
         print("Updated static GTFS data: " + ", ".join(changed_files))
     else:
         print("Static GTFS data is already up to date.")
+
+    report = run_data_completeness_check()
+    print(f"Data completeness periods: {len(report)}")
 
 
 if __name__ == "__main__":
