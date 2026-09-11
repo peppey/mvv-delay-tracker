@@ -4,11 +4,14 @@ from mvv_delay_tracker.analysis.plotting import (
     calculate_transport_mode_delays,
     classify_transport_mode,
     create_delay_comparison_plot,
+    filter_munich_lines,
 )
 
 
 def test_classify_transport_mode():
     assert classify_transport_mode("S1") == "S-Bahn"
+    assert classify_transport_mode("S20") == "S-Bahn"
+    assert classify_transport_mode("U1") == "U-Bahn"
     assert classify_transport_mode("U12") == "U-Bahn"
     assert classify_transport_mode("18") == "Tram/Bus"
     assert classify_transport_mode("X30") == "Tram/Bus"
@@ -30,6 +33,21 @@ def test_calculate_transport_mode_delays():
         "Tram/Bus",
     ]
     assert list(result["delay_minutes"]) == [1.0, 2.0, 3.5]
+
+
+def test_filter_munich_lines(tmp_path):
+    lines_path = tmp_path / "munich_lines.csv"
+    lines_path.write_text(
+        "line,mode\nS6,S-Bahn\nU3,U-Bahn\n18,Tram\n"
+    )
+    delay_df = pd.DataFrame({
+        "line": ["S6", "U3", "18", "SEV S6", "RE1"],
+        "departure_delay": [60, 120, 180, 240, 300],
+    })
+
+    result = filter_munich_lines(delay_df, str(lines_path))
+
+    assert list(result["line"]) == ["S6", "U3", "18"]
 
 
 def test_create_delay_comparison_plot(tmp_path):

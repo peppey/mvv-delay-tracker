@@ -5,6 +5,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 from matplotlib.collections import PathCollection
+from matplotlib.colors import LinearSegmentedColormap
 import pandas as pd
 
 from mvv_delay_tracker.analysis.geographic import wgs84_to_utm32
@@ -94,6 +95,34 @@ def filter_observed_after_arrival(
     ].copy()
 
     return df
+
+
+def filter_munich_lines(
+    delay_df: pd.DataFrame,
+    lines_path: str = "data/static/munich_lines.csv",
+    line_column: str = "line",
+) -> pd.DataFrame:
+    """Keep lines configured in the Munich lines list."""
+
+    if line_column not in delay_df.columns:
+        raise ValueError(
+            f"Die Linien-Spalte '{line_column}' fehlt im DataFrame."
+        )
+
+    lines_df = pd.read_csv(lines_path, dtype={"line": str})
+
+    if "line" not in lines_df.columns:
+        raise ValueError(
+            f"Die Linienliste '{lines_path}' benötigt eine 'line'-Spalte."
+        )
+
+    configured_lines = set(
+        lines_df["line"].dropna().astype(str).str.strip()
+    )
+    line_names = delay_df[line_column].astype(str).str.strip()
+    keep_mask = line_names.isin(configured_lines)
+
+    return delay_df.loc[keep_mask].copy()
 
 
 # ============================================================
@@ -318,7 +347,10 @@ def plot_station_delays(
         station_delay_df["utm_x"],
         station_delay_df["utm_y"],
         c=station_delay_df["delay_minutes"],
-        cmap="PuBuGn",
+        cmap=LinearSegmentedColormap.from_list(
+            "delay_green_red",
+            ["#E8F5E9", "#2C7FB8", "#8B0000"],
+        ),
         s=35,
         alpha=0.85,
     )
@@ -763,10 +795,10 @@ def classify_transport_mode(line_name: str) -> str | None:
 
     normalized_line_name = str(line_name).strip().upper()
 
-    if re.fullmatch(r"S[A-Z0-9]", normalized_line_name):
+    if re.fullmatch(r"S[A-Z0-9]{1,2}", normalized_line_name):
         return "S-Bahn"
 
-    if re.fullmatch(r"U[A-Z0-9]{2}", normalized_line_name):
+    if re.fullmatch(r"U[A-Z0-9]{1,2}", normalized_line_name):
         return "U-Bahn"
 
     if (
@@ -781,15 +813,24 @@ def classify_transport_mode(line_name: str) -> str | None:
 def calculate_transport_mode_delays(
     delay_df: pd.DataFrame,
     line_column: str = "line",
+    lines_path: str = "data/static/munich_lines.csv",
 ) -> pd.DataFrame:
     """
     Calculate average departure delays for each transport mode.
     """
 
     classified_delay_df = delay_df.copy()
+    lines_df = pd.read_csv(lines_path, dtype={"line": str})
+    line_modes = lines_df.set_index("line")["mode"]
     classified_delay_df["transport_mode"] = (
-        classified_delay_df[line_column]
-        .map(classify_transport_mode)
+        classified_delay_df[line_column].astype(str).str.strip().map(line_modes)
+    )
+    classified_delay_df["transport_mode"] = (
+        classified_delay_df["transport_mode"]
+        .replace({"Tram": "Tram/Bus", "Bus": "Tram/Bus"})
+        .fillna(
+            classified_delay_df[line_column].map(classify_transport_mode)
+        )
     )
 
     classified_delay_df = classified_delay_df.dropna(
@@ -815,6 +856,7 @@ def create_delay_comparison_plot(
     delay_df: pd.DataFrame,
     output_path: str = "docs/delay_comparison.png",
     line_column: str = "line",
+    lines_path: str = "data/static/munich_lines.csv",
 ) -> None:
     """
     Create a bar chart comparing average delays by transport mode.
@@ -823,6 +865,7 @@ def create_delay_comparison_plot(
     transport_mode_delays = calculate_transport_mode_delays(
         delay_df,
         line_column=line_column,
+        lines_path=lines_path,
     )
     figure, axis = plt.subplots(figsize=(10, 6))
 
@@ -838,8 +881,8 @@ def create_delay_comparison_plot(
     )
 
     axis.set_title(
-        "MVV VERSPÄTUNGEN NACH VERKEHRSMITTEL",
-        fontsize=18,
+        "ÖPNV VERSPÄTUNGEN NACH VERKEHRSMITTEL - MÜNCHEN 2026" ,
+        fontsize=14,
         fontweight="bold",
         color="#263238",
         pad=22,
@@ -919,7 +962,7 @@ def create_delay_statistics_plot(
     figure.text(
         0.5,
         0.94,
-        "MVV VERSPÄTUNGEN 2026",
+        "ÖPNV VERSPÄTUNGEN - MÜNCHEN 2026",
         ha="center",
         va="center",
         fontsize=24,
@@ -1151,6 +1194,7 @@ def generate_plot(
     data_path: str = "data/realtime/mvv_realtime.parquet",
     geojson_path: str = "data/static/munich.geojson",
     stops_path: str = "data/static/munich_stops.csv",
+    lines_path: str = "data/static/munich_lines.csv",
     map_output_path: str = "docs/munich_delays.png",
     statistics_output_path: str = "docs/munich_delay_statistics.png",
     comparison_output_path: str = "docs/delay_comparison.png",
@@ -1182,6 +1226,12 @@ def generate_plot(
 
     delay_df = filter_observed_after_arrival(
         delay_df
+    )
+
+    delay_df = filter_munich_lines(
+        delay_df,
+        lines_path=lines_path,
+        line_column=line_column,
     )
 
     print(
@@ -1250,7 +1300,7 @@ def generate_plot(
     figure.text(
         0.5,
         0.94,
-        "MVV VERSPÄTUNGEN 2026",
+        "ÖPNV VERSPÄTUNGEN - MÜNCHEN 2026",
         ha="center",
         va="center",
         fontsize=24,
@@ -1330,6 +1380,7 @@ def generate_plot(
         delay_df,
         output_path=comparison_output_path,
         line_column=line_column,
+        lines_path=lines_path,
     )
 
     # ========================================================
@@ -1345,3 +1396,12 @@ def generate_plot(
         f"Statistik-Report gespeichert unter: "
         f"{statistics_output_path}"
     )
+
+
+def main() -> None:
+    """Generate all delay plots using the default project paths."""
+    generate_plot()
+
+
+if __name__ == "__main__":
+    main()
