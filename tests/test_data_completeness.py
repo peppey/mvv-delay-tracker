@@ -43,6 +43,7 @@ def test_calculate_trip_completeness_counts_observations_in_period_only():
         "start_date": ["20260911"],
         "observation_timestamp": ["2026-09-11 11:00:00"],
         "departure_time": ["2026-09-11 10:30:00"],
+        "departure_delay": [pd.NA],
     })
 
     result = calculate_trip_completeness(
@@ -54,6 +55,7 @@ def test_calculate_trip_completeness_counts_observations_in_period_only():
 
     assert result["planned_trips"] == 1
     assert result["observed_trips"] == 1
+    assert result["observed_trips_with_delay"] == 0
     assert result["completeness_percent"] == 100.0
 
 

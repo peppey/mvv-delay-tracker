@@ -32,9 +32,11 @@ def test_calculate_transport_mode_delays():
     assert list(result["transport_mode"]) == [
         "S-Bahn",
         "U-Bahn",
-        "Tram/Bus",
+        "Tram",
+        "Bus",
     ]
-    assert list(result["delay_minutes"]) == [1.0, 2.0, 3.5]
+    assert list(result["delay_minutes"].iloc[:3]) == [1.0, 2.0, 3.0]
+    assert pd.isna(result.loc[3, "delay_minutes"])
 
 
 def test_filter_munich_lines(tmp_path):
