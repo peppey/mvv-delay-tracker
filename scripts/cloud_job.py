@@ -43,6 +43,14 @@ STATIC_FILES = [
     "docs/munich_trip_completeness.png",
     "docs/munich_trip_completeness_by_line.png",
 ]
+GITHUB_STATIC_FILES = [
+    path for path in STATIC_FILES
+    if path not in {
+        "data/static/stop_times.txt",
+        "data/static/calendar.txt",
+        "data/static/calendar_dates.txt",
+    }
+]
 
 
 def sync_from_bucket(paths: list[str], bucket: storage.Bucket) -> None:
@@ -134,12 +142,16 @@ def main() -> None:
         update_readme_access_date()
         message = "Update MVV data and plot"
     else:
+        os.environ["KEEP_TEMPORARY_STATIC_FILES"] = "true"
         run_command("python", "scripts/update_static_data.py")
         run_command("python", "scripts/check_realtime_data_quality.py")
         message = "Update static GTFS data"
 
     sync_to_bucket(paths, bucket)
-    push_to_github(paths, message)
+    push_to_github(
+        paths if job_name == "realtime" else GITHUB_STATIC_FILES,
+        message,
+    )
 
 
 if __name__ == "__main__":
