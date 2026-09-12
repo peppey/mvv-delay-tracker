@@ -121,7 +121,7 @@ def push_to_github(paths: list[str], message: str) -> None:
 
 
 def main() -> None:
-    job_name = os.environ.get("CLOUD_RUN_JOB", "realtime")
+    job_name = os.environ.get("MVV_JOB_TYPE", "realtime")
     if job_name not in {"realtime", "static"}:
         raise ValueError("CLOUD_RUN_JOB must be 'realtime' or 'static'")
 
