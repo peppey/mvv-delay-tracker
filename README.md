@@ -19,10 +19,8 @@ The dataset is documented and saved in
 
 ![Delay comparison by line](docs/line_comparison.png)
 
-The trip completeness reports are stored in
-[data/quality/](data/quality/). They compare scheduled trips with at least
-one stop inside Munich's city boundary against trip instances observed in the
-realtime feed, in 24-hour periods from the first observation onward.
+
+![Delay comparison by time and day of the week](docs/delay_heatmap.png)
 
 
 ## Sources
