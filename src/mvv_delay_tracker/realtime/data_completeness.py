@@ -23,6 +23,7 @@ REPORT_COLUMNS = [
     "period_end",
     "planned_trips",
     "observed_trips",
+    "observed_trips_with_delay",
     "missing_trips",
     "completeness_percent",
 ]
@@ -170,6 +171,7 @@ def _observed_trip_keys(
     realtime_data: pd.DataFrame,
     period_start: datetime,
     period_end: datetime,
+    require_delay: bool = False,
 ) -> set[str]:
     observations = realtime_data.copy()
     observations["observation_timestamp"] = pd.to_datetime(
@@ -180,6 +182,10 @@ def _observed_trip_keys(
             period_start, period_end, inclusive="both"
         )
     ]
+    if require_delay:
+        if "departure_delay" not in observations.columns:
+            return set()
+        observations = observations.dropna(subset=["departure_delay"])
     return set(
         observations["trip_id"].astype(str)
         + ":"
@@ -200,8 +206,9 @@ def calculate_trip_completeness(
         + ":"
         + planned["service_date"].astype(str).str.replace("-", "", regex=False)
     )
-    observed_keys = _observed_trip_keys(
-        realtime_data, period_start, period_end
+    observed_keys = _observed_trip_keys(realtime_data, period_start, period_end)
+    observed_keys_with_delay = _observed_trip_keys(
+        realtime_data, period_start, period_end, require_delay=True
     )
     planned_count = planned["trip_key"].nunique()
     observed_count = len(set(planned["trip_key"]) & observed_keys)
@@ -210,6 +217,9 @@ def calculate_trip_completeness(
         "period_end": period_end.isoformat(sep=" "),
         "planned_trips": planned_count,
         "observed_trips": observed_count,
+        "observed_trips_with_delay": len(
+            set(planned["trip_key"]) & observed_keys_with_delay
+        ),
         "missing_trips": planned_count - observed_count,
         "completeness_percent": round(
             100 * observed_count / planned_count, 2
@@ -332,7 +342,7 @@ def plot_completeness(
     report: pd.DataFrame,
     output_path: Path = COMPLETENESS_PLOT_PATH,
 ) -> None:
-    """Plot planned and observed Munich trips for each report period."""
+    """Plot planned and observed Munich trips as lines and an area."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     figure, axis = plt.subplots(figsize=(11, 6))
     figure.patch.set_facecolor("#FFFFFF")
@@ -343,23 +353,24 @@ def plot_completeness(
     else:
         report = report.copy()
         report["period_start"] = pd.to_datetime(report["period_start"])
-        x = range(len(report))
-        width = 0.34
-        planned_bars = axis.bar(
-            [value - width / 2 for value in x],
-            report["planned_trips"],
-            width,
-            label="Geplant",
-            color="#00695C",
+        x = list(range(len(report)))
+        planned = report["planned_trips"]
+        observed = report["observed_trips"]
+        observed_with_delay = report["observed_trips_with_delay"]
+        axis.fill_between(x, planned, color="#B2DFDB", alpha=0.55)
+        axis.plot(
+            x, planned, marker="o", linewidth=2.4,
+            label="Geplante Trips", color="#00695C",
         )
-        observed_bars = axis.bar(
-            [value + width / 2 for value in x],
-            report["observed_trips"],
-            width,
-            label="Im Feed",
-            color="#1976D2",
+        axis.plot(
+            x, observed, marker="o", linewidth=2.2,
+            label="Trips im Feed (inkl. NaN-Delay)", color="#1976D2",
         )
-        axis.set_xticks(list(x))
+        axis.plot(
+            x, observed_with_delay, marker="o", linewidth=2.2,
+            label="Trips im Feed (mit Delay)", color="#8B0000",
+        )
+        axis.set_xticks(x)
         axis.set_xticklabels(
             report["period_start"].dt.strftime("%d.%m.%Y"),
         )
@@ -377,8 +388,6 @@ def plot_completeness(
         axis.legend(frameon=False)
         axis.grid(axis="y", color="#E0E6ED", linewidth=0.8)
         axis.set_axisbelow(True)
-        axis.bar_label(planned_bars, fmt="%d", padding=3, color="#546E7A")
-        axis.bar_label(observed_bars, fmt="%d", padding=3, color="#546E7A")
     figure.tight_layout()
     figure.savefig(
         output_path,

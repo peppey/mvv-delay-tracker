@@ -498,9 +498,8 @@ def calculate_delay_statistics(
 
     NaN values in departure_delay are ignored.
 
-    The input DataFrame is assumed to already contain only
-    observations where observation_timestamp is later than
-    arrival_time.
+    The input DataFrame is assumed to have been filtered by the
+    data update pipeline.
     """
 
     df = delay_df.copy()
@@ -798,7 +797,7 @@ def calculate_delay_statistics(
 
 def classify_transport_mode(line_name: str) -> str | None:
     """
-    Classify an MVV line as S-Bahn, U-Bahn, or Tram/Bus.
+    Classify an MVV line as S-Bahn, U-Bahn, Tram, or Bus when possible.
     """
 
     normalized_line_name = str(line_name).strip().upper()
@@ -833,12 +832,10 @@ def calculate_transport_mode_delays(
     classified_delay_df["transport_mode"] = (
         classified_delay_df[line_column].astype(str).str.strip().map(line_modes)
     )
-    classified_delay_df["transport_mode"] = (
-        classified_delay_df["transport_mode"]
-        .replace({"Tram": "Tram/Bus", "Bus": "Tram/Bus"})
-        .fillna(
-            classified_delay_df[line_column].map(classify_transport_mode)
-        )
+    classified_delay_df["transport_mode"] = classified_delay_df[
+        "transport_mode"
+    ].fillna(
+        classified_delay_df[line_column].map(classify_transport_mode)
     )
 
     classified_delay_df = classified_delay_df.dropna(
@@ -848,7 +845,7 @@ def calculate_transport_mode_delays(
         classified_delay_df["departure_delay"] / 60
     ).clip(lower=0)
 
-    transport_mode_order = ["S-Bahn", "U-Bahn", "Tram/Bus"]
+    transport_mode_order = ["S-Bahn", "U-Bahn", "Tram", "Bus"]
 
     return (
         classified_delay_df
@@ -883,7 +880,7 @@ def create_delay_comparison_plot(
     figure.patch.set_facecolor("#FFFFFF")
     axis.set_facecolor("#FFFFFF")
 
-    bar_colors = ["#00695C", "#1976D2", "#00897B"]
+    bar_colors = ["#00695C", "#1976D2", "#00897B", "#4C956C"]
     bars = axis.bar(
         transport_mode_delays["transport_mode"],
         transport_mode_delays["delay_minutes"].fillna(0),
@@ -966,11 +963,9 @@ def create_line_comparison_plot(
     line_delay_df["transport_mode"] = (
         line_delay_df[line_column].astype(str).str.strip().map(line_modes)
     )
-    line_delay_df["transport_mode"] = (
-        line_delay_df["transport_mode"]
-        .replace({"Tram": "Tram/Bus", "Bus": "Tram/Bus"})
-        .fillna(line_delay_df[line_column].map(classify_transport_mode))
-    )
+    line_delay_df["transport_mode"] = line_delay_df[
+        "transport_mode"
+    ].fillna(line_delay_df[line_column].map(classify_transport_mode))
     line_delay_df = line_delay_df.dropna(
         subset=[line_column, "transport_mode", "departure_delay"]
     )
@@ -993,15 +988,23 @@ def create_line_comparison_plot(
     mode_colors = {
         "S-Bahn": "#00695C",
         "U-Bahn": "#1976D2",
-        "Tram/Bus": "#00897B",
+        "Tram": "#00897B",
+        "Bus": "#4C956C",
+        "Tram/Bus": "#90A4AE",
     }
 
     figure, axis = plt.subplots(figsize=(11, 8))
     figure.patch.set_facecolor("#FFFFFF")
     axis.set_facecolor("#FFFFFF")
 
+    line_labels = line_statistics[line_column].astype(str).where(
+        ~line_statistics["transport_mode"].isin(["Tram", "Bus"]),
+        line_statistics["transport_mode"] + " "
+        + line_statistics[line_column].astype(str),
+    )
+
     bars = axis.barh(
-        line_statistics[line_column].astype(str),
+        line_labels,
         line_statistics["median_delay"],
         color=line_statistics["transport_mode"].map(mode_colors),
         height=0.62,
@@ -1115,7 +1118,9 @@ def create_delay_heatmap(
         "delay_green_blue_red",
         ["#E8F5E9", "#2C7FB8", "#8B0000"],
     )
-    maximum_delay = heatmap_values.to_numpy().max()
+    maximum_delay = heatmap_values.max().max()
+    if pd.isna(maximum_delay):
+        maximum_delay = 1.0
 
     number_of_observations = len(heatmap_df)
 
@@ -1452,8 +1457,8 @@ def generate_plot(
     """
     Generate and save the Munich delay map and statistics report.
 
-    Only observations where observation_timestamp is later than
-    arrival_time are included in the analysis.
+    The input data is assumed to have been filtered by the data
+    update pipeline.
     """
 
     # ========================================================
@@ -1473,10 +1478,6 @@ def generate_plot(
         delay_df
     )
 
-    delay_df = filter_observed_after_arrival(
-        delay_df
-    )
-
     delay_df = filter_munich_lines(
         delay_df,
         lines_path=lines_path,
@@ -1489,7 +1490,7 @@ def generate_plot(
     )
 
     print(
-        f"Beobachtungen nach Filter: "
+        f"Beobachtungen nach Linienfilter: "
         f"{len(delay_df):,}"
     )
 
