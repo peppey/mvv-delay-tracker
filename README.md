@@ -20,6 +20,9 @@ The dataset is documented and saved in
 ![Delay comparison by line](docs/line_comparison.png)
 
 
+![Delay comparison by time and day of the week](docs/delay_heatmap.png)
+
+
 ## Sources
 
 The data used for this project is provided by
