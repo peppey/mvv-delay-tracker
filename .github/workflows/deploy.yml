@@ -58,6 +58,7 @@ jobs:
             gcloud run jobs deploy "$job" \
               --image "${IMAGE}:${GITHUB_SHA}" \
               --region "${REGION}" \
+              --memory "4Gi" \
               --service-account "mvv-delay-tracker-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
               --set-env-vars "MVV_JOB_TYPE=${job_type},MVV_DATA_BUCKET=mvv-delay-tracker-data,GITHUB_REPOSITORY=peppey/mvv-delay-tracker" \
               --set-secrets "GITHUB_TOKEN=github-repo-token:latest"
