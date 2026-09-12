@@ -33,6 +33,8 @@ def make_archive(
 
 def test_download_static_files(monkeypatch):
     class Response:
+        status_code = 200
+        headers = {}
         content = make_archive()
 
         def raise_for_status(self):
@@ -53,8 +55,10 @@ def test_download_static_files(monkeypatch):
     }
 
 
-def test_download_static_files_can_include_stops(monkeypatch):
+def test_download_static_files_can_include_stops(monkeypatch, tmp_path):
     class Response:
+        status_code = 200
+        headers = {}
         content = make_archive()
 
         def raise_for_status(self):
@@ -68,13 +72,46 @@ def test_download_static_files_can_include_stops(monkeypatch):
     files = download_static_files(
         "https://example.test/feed.zip",
         include_stops=True,
+        metadata_path=tmp_path / ".gtfs_metadata.json",
     )
 
     assert files["stops.txt"] == b"stops"
 
 
+def test_download_static_files_uses_conditional_request(monkeypatch, tmp_path):
+    metadata_path = tmp_path / ".gtfs_metadata.json"
+    metadata_path.write_text(
+        '{"etag": "feed-v1", "last_modified": "yesterday"}',
+        encoding="utf-8",
+    )
+
+    class Response:
+        status_code = 304
+        headers = {}
+
+        def raise_for_status(self):
+            pass
+
+    request = Mock(return_value=Response())
+    monkeypatch.setattr(
+        "mvv_delay_tracker.static.static_data.requests.get",
+        request,
+    )
+
+    assert download_static_files(
+        "https://example.test/feed.zip",
+        metadata_path=metadata_path,
+    ) == {}
+    assert request.call_args.kwargs["headers"] == {
+        "If-None-Match": "feed-v1",
+        "If-Modified-Since": "yesterday",
+    }
+
+
 def test_download_static_files_rejects_missing_file(monkeypatch):
     class Response:
+        status_code = 200
+        headers = {}
         content = make_archive(trips=None)
 
         def raise_for_status(self):

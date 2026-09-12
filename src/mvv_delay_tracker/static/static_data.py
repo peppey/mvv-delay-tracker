@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from io import BytesIO
 from pathlib import Path
 from zipfile import ZipFile
@@ -9,6 +10,7 @@ import requests
 
 STATIC_DATA_URL = "https://download.gtfs.de/germany/nv_free/latest.zip"
 STATIC_DATA_DIR = Path("data/static")
+STATIC_DATA_METADATA_PATH = STATIC_DATA_DIR / ".gtfs_metadata.json"
 FILES_TO_UPDATE = (
     "agency.txt",
     "routes.txt",
@@ -27,10 +29,41 @@ TEMPORARY_FILES = (
 def download_static_files(
     url: str = STATIC_DATA_URL,
     include_stops: bool = False,
+    metadata_path: Path = STATIC_DATA_METADATA_PATH,
+    conditional: bool = True,
 ) -> dict[str, bytes]:
     """Download the selected GTFS files from the remote archive."""
-    response = requests.get(url, timeout=120)
+    request_headers = {}
+    if conditional and metadata_path.exists():
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if metadata.get("etag"):
+            request_headers["If-None-Match"] = metadata["etag"]
+        if metadata.get("last_modified"):
+            request_headers["If-Modified-Since"] = metadata["last_modified"]
+
+    response = requests.get(url, headers=request_headers, timeout=120)
     response.raise_for_status()
+    if response.status_code == 304:
+        return {}
+
+    response_metadata = {
+        key: response.headers[key]
+        for key in ("ETag", "Last-Modified")
+        if key in response.headers
+    }
+    if response_metadata:
+        metadata_path.parent.mkdir(parents=True, exist_ok=True)
+        metadata_path.write_text(
+            json.dumps(
+                {
+                    "etag": response_metadata.get("ETag"),
+                    "last_modified": response_metadata.get("Last-Modified"),
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
     archive_buffer = BytesIO(response.content)
     with ZipFile(archive_buffer) as archive:
