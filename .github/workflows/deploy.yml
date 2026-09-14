@@ -57,7 +57,7 @@ jobs:
             job_type="${job_config##*:}"
             memory="4Gi"
             if [[ "$job_type" == "static" ]]; then
-              memory="16Gi"
+              memory="8Gi"
             fi
             gcloud run jobs deploy "$job" \
               --image "${IMAGE}:${GITHUB_SHA}" \
