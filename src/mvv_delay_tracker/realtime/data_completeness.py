@@ -278,8 +278,14 @@ def build_completeness_report(
     realtime_data: pd.DataFrame,
     static_data_directory: Path = Path("data/static"),
     now: datetime | None = None,
+    start_from: datetime | None = None,
 ) -> pd.DataFrame:
-    """Build one report row per elapsed 24-hour period."""
+    """Build one report row per elapsed 24-hour period.
+
+    ``start_from`` resumes the report from a given period instead of the
+    first ever recorded departure, so previously computed periods aren't
+    recalculated on every run.
+    """
     observation_timestamps = pd.to_datetime(
         realtime_data["observation_timestamp"], errors="coerce"
     ).dropna()
@@ -289,6 +295,8 @@ def build_completeness_report(
     if observation_timestamps.empty or departure_times.empty:
         return pd.DataFrame(columns=REPORT_COLUMNS)
     first = departure_times.min().to_pydatetime().replace(tzinfo=None)
+    if start_from is not None:
+        first = max(first, start_from)
     last = (now or observation_timestamps.max().to_pydatetime()).replace(
         tzinfo=None
     )
@@ -303,6 +311,9 @@ def build_completeness_report(
         rows.append(calculate_trip_completeness(
             planned, realtime_data, period_start, period_end
         ))
+        print(
+            f"  Trip completeness period {period_start} - {period_end} done."
+        )
         period_start += timedelta(hours=24)
     return pd.DataFrame(rows, columns=REPORT_COLUMNS)
 
@@ -311,8 +322,14 @@ def build_line_completeness_report(
     realtime_data: pd.DataFrame,
     static_data_directory: Path = Path("data/static"),
     now: datetime | None = None,
+    start_from: datetime | None = None,
 ) -> pd.DataFrame:
-    """Build the completeness report grouped by line and 24-hour period."""
+    """Build the completeness report grouped by line and 24-hour period.
+
+    ``start_from`` resumes the report from a given period instead of the
+    first ever recorded departure, so previously computed periods aren't
+    recalculated on every run.
+    """
     observation_timestamps = pd.to_datetime(
         realtime_data["observation_timestamp"], errors="coerce"
     ).dropna()
@@ -322,6 +339,8 @@ def build_line_completeness_report(
     if observation_timestamps.empty or departure_times.empty:
         return pd.DataFrame(columns=LINE_REPORT_COLUMNS)
     first = departure_times.min().to_pydatetime().replace(tzinfo=None)
+    if start_from is not None:
+        first = max(first, start_from)
     last = (now or observation_timestamps.max().to_pydatetime()).replace(
         tzinfo=None
     )
@@ -336,6 +355,9 @@ def build_line_completeness_report(
         reports.append(calculate_line_completeness(
             planned, realtime_data, period_start, period_end
         ))
+        print(
+            f"  Line completeness period {period_start} - {period_end} done."
+        )
         period_start += timedelta(hours=24)
     if not reports:
         return pd.DataFrame(columns=LINE_REPORT_COLUMNS)
@@ -437,23 +459,79 @@ def plot_line_completeness(
     plt.close(figure)
 
 
+def _resume_report(
+    report_path: Path,
+    period_start_column: str = "period_start",
+) -> tuple[pd.DataFrame | None, datetime | None]:
+    """Load an existing report and split off its last (possibly partial) period.
+
+    Returns the rows before the last period (kept as-is) and the period_start
+    to resume computation from, so that partial period gets recalculated with
+    any observations that arrived since the previous run.
+    """
+    if not report_path.exists():
+        return None, None
+    existing = pd.read_csv(report_path)
+    if existing.empty:
+        return None, None
+    period_starts = pd.to_datetime(existing[period_start_column])
+    last_period_start = period_starts.max()
+    kept = existing.loc[period_starts < last_period_start]
+    return kept, last_period_start.to_pydatetime()
+
+
 def run_data_completeness_check(
     realtime_path: str = "data/realtime/mvv_realtime.parquet",
     static_data_directory: Path = Path("data/static"),
     output_path: Path = COMPLETENESS_PATH,
     plot_path: Path = COMPLETENESS_PLOT_PATH,
 ) -> pd.DataFrame:
-    """Create and save the current completeness report and plot."""
+    """Create and save the current completeness report and plot.
+
+    Only periods after the last saved run are recalculated; older periods
+    are kept as-is.
+    """
+    print("Loading existing realtime data for completeness check...")
     realtime_data = load_existing_realtime_data(realtime_path)
-    report = build_completeness_report(
+    print(f"Loaded {len(realtime_data)} realtime observations.")
+
+    kept_report, resume_from = _resume_report(output_path)
+    print(
+        "Resuming trip completeness report from "
+        f"{resume_from}." if resume_from else "Building trip completeness report from scratch."
+    )
+    new_report = build_completeness_report(
         realtime_data,
         static_data_directory,
+        start_from=resume_from,
     )
-    line_report = build_line_completeness_report(
+    report = (
+        pd.concat([kept_report, new_report], ignore_index=True)
+        if kept_report is not None and not kept_report.empty
+        else new_report
+    )
+    print(f"Trip completeness report: {len(new_report)} new period(s).")
+
+    kept_line_report, line_resume_from = _resume_report(LINE_COMPLETENESS_PATH)
+    print(
+        "Resuming line completeness report from "
+        f"{line_resume_from}." if line_resume_from
+        else "Building line completeness report from scratch."
+    )
+    new_line_report = build_line_completeness_report(
         realtime_data,
         static_data_directory,
+        start_from=line_resume_from,
     )
+    line_report = (
+        pd.concat([kept_line_report, new_line_report], ignore_index=True)
+        if kept_line_report is not None and not kept_line_report.empty
+        else new_line_report
+    )
+    print(f"Line completeness report: {len(new_line_report)} new row(s).")
+
     save_completeness_report(report, output_path)
     save_completeness_report(line_report, LINE_COMPLETENESS_PATH)
     plot_completeness(report, plot_path)
+    print(f"Saved {output_path} and {plot_path}.")
     return report
