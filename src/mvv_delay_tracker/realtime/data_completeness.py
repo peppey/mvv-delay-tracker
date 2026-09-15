@@ -45,13 +45,9 @@ def _gtfs_time_to_seconds(value: str) -> int:
 
 def load_munich_schedule(
     static_data_directory: Path = Path("data/static"),
+    stop_times_chunk_size: int = 500_000,
 ) -> pd.DataFrame:
     """Load trips with at least one stop inside Munich's city boundary."""
-    stop_times = pd.read_csv(
-        static_data_directory / "stop_times.txt",
-        usecols=["trip_id", "stop_id", "departure_time"],
-        dtype=str,
-    )
     trips = pd.read_csv(
         static_data_directory / "trips.txt",
         usecols=["trip_id", "service_id", "route_id"],
@@ -62,14 +58,30 @@ def load_munich_schedule(
         usecols=["route_id", "route_short_name"],
         dtype=str,
     )
-    munich_stops = pd.read_csv(
+    munich_stop_ids = set(pd.read_csv(
         static_data_directory / "munich_stops.csv",
         usecols=["stop_id"],
         dtype=str,
-    )["stop_id"]
+    )["stop_id"])
+
+    # stop_times.txt covers all of Germany, so it's filtered chunk by chunk
+    # instead of being fully loaded into memory at once.
+    stop_times_chunks = [
+        chunk.loc[chunk["stop_id"].isin(munich_stop_ids)]
+        for chunk in pd.read_csv(
+            static_data_directory / "stop_times.txt",
+            usecols=["trip_id", "stop_id", "departure_time"],
+            dtype=str,
+            chunksize=stop_times_chunk_size,
+        )
+    ]
+    stop_times = (
+        pd.concat(stop_times_chunks, ignore_index=True)
+        if stop_times_chunks
+        else pd.DataFrame(columns=["trip_id", "stop_id", "departure_time"])
+    )
     schedule = (
         stop_times
-        .loc[stop_times["stop_id"].isin(set(munich_stops))]
         .merge(trips, on="trip_id", how="inner")
         .merge(routes, on="route_id", how="inner")
     )

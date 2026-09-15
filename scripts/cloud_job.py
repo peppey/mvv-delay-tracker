@@ -43,13 +43,19 @@ STATIC_FILES = [
     "docs/munich_trip_completeness.png",
     "docs/munich_trip_completeness_by_line.png",
 ]
+PARQUET_PATH = "data/realtime/mvv_realtime.parquet"
+PARQUET_BACKUP_PREFIX = "data/realtime/backups/mvv_realtime"
+
+# Raw GTFS downloads only live in the GCS bucket (kept there so static-update
+# can reuse them without re-downloading); GitHub only gets the derived,
+# publicly relevant static artifacts.
 GITHUB_STATIC_FILES = [
-    path for path in STATIC_FILES
-    if path not in {
-        "data/static/stop_times.txt",
-        "data/static/calendar.txt",
-        "data/static/calendar_dates.txt",
-    }
+    "data/static/munich_stops.csv",
+    "data/quality/realtime_departure_failures.csv",
+    "data/quality/munich_trip_completeness.csv",
+    "data/quality/munich_trip_completeness_by_line.csv",
+    "docs/munich_trip_completeness.png",
+    "docs/munich_trip_completeness_by_line.png",
 ]
 
 
@@ -80,6 +86,18 @@ def update_readme_access_date() -> None:
         flags=re.MULTILINE,
     )
     readme_path.write_text(updated_readme)
+
+
+def backup_parquet(bucket: storage.Bucket) -> None:
+    """Create a dated, versioned copy of the realtime parquet in the bucket."""
+    source_blob = bucket.blob(PARQUET_PATH)
+    if not source_blob.exists():
+        return
+    backup_name = (
+        f"{PARQUET_BACKUP_PREFIX}_{datetime.now().strftime('%Y-%m-%d')}.parquet"
+    )
+    # Server-side copy: no download/upload round-trip through the job.
+    bucket.copy_blob(source_blob, bucket, backup_name)
 
 
 def run_command(*command: str) -> None:
@@ -138,19 +156,24 @@ def main() -> None:
     sync_from_bucket(paths, bucket)
 
     if job_name == "realtime":
+        # Runs every 10 minutes: only update the bucket, no GitHub push.
         run_command("python", "scripts/update_parquet.py")
-        update_readme_access_date()
-        message = "Update MVV data and plot"
-    else:
-        os.environ["KEEP_TEMPORARY_STATIC_FILES"] = "true"
-        run_command("python", "scripts/update_static_data.py")
-        run_command("python", "scripts/check_realtime_data_quality.py")
-        message = "Update static GTFS data"
+        sync_to_bucket(paths, bucket)
+        return
 
+    os.environ["KEEP_TEMPORARY_STATIC_FILES"] = "true"
+    run_command("python", "scripts/update_static_data.py")
+    run_command("python", "scripts/check_realtime_data_quality.py")
     sync_to_bucket(paths, bucket)
+    # Versioned parquet backup happens once a day, alongside the static update.
+    backup_parquet(bucket)
+
+    # Pull the latest realtime artifacts so the daily GitHub push includes them.
+    sync_from_bucket(REALTIME_FILES, bucket)
+    update_readme_access_date()
     push_to_github(
-        paths if job_name == "realtime" else GITHUB_STATIC_FILES,
-        message,
+        GITHUB_STATIC_FILES + REALTIME_FILES,
+        "Update MVV data and plots",
     )
 
 
