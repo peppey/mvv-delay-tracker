@@ -38,6 +38,7 @@ STATIC_FILES = [
     "data/static/calendar.txt",
     "data/static/calendar_dates.txt",
     "data/quality/realtime_departure_failures.csv",
+    "data/quality/.data_quality_state.json",
     "data/quality/munich_trip_completeness.csv",
     "data/quality/munich_trip_completeness_by_line.csv",
     "docs/munich_trip_completeness.png",
