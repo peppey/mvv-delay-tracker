@@ -18,17 +18,20 @@ from mvv_delay_tracker.realtime.data_completeness import (
 def main() -> None:
     """Download and write changed static GTFS files."""
     try:
+        print("Checking for new static GTFS data...")
         remote_files = download_static_files(include_stops=True)
         required_files = (*FILES_TO_UPDATE, "stops.txt")
         if not remote_files and not all(
             (STATIC_DATA_DIR / filename).exists()
             for filename in required_files
         ):
+            print("No local static data found, forcing a full download...")
             remote_files = download_static_files(
                 include_stops=True,
                 conditional=False,
             )
         if remote_files:
+            print("New static GTFS data downloaded, writing changed files...")
             stops_bytes = remote_files.pop("stops.txt")
             changed_files = update_static_files(remote_files)
             stops_changed = update_munich_stops(stops_bytes)
@@ -42,6 +45,7 @@ def main() -> None:
         else:
             print("Static GTFS data is already up to date.")
 
+        print("Running data completeness check...")
         report = run_data_completeness_check()
         print(f"Data completeness periods: {len(report)}")
     finally:

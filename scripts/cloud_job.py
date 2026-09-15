@@ -153,28 +153,37 @@ def main() -> None:
 
     paths = REALTIME_FILES if job_name == "realtime" else STATIC_FILES
     bucket = storage.Client().bucket(BUCKET_NAME)
+    print(f"Syncing {len(paths)} paths from bucket '{BUCKET_NAME}'...")
     sync_from_bucket(paths, bucket)
 
     if job_name == "realtime":
         # Runs every 10 minutes: only update the bucket, no GitHub push.
         run_command("python", "scripts/update_parquet.py")
+        print("Syncing updated realtime files back to the bucket...")
         sync_to_bucket(paths, bucket)
         return
 
     os.environ["KEEP_TEMPORARY_STATIC_FILES"] = "true"
+    print("Running static-update...")
     run_command("python", "scripts/update_static_data.py")
+    print("Running realtime data quality check...")
     run_command("python", "scripts/check_realtime_data_quality.py")
+    print("Syncing updated static files back to the bucket...")
     sync_to_bucket(paths, bucket)
     # Versioned parquet backup happens once a day, alongside the static update.
+    print("Creating versioned parquet backup...")
     backup_parquet(bucket)
 
     # Pull the latest realtime artifacts so the daily GitHub push includes them.
+    print("Fetching latest realtime artifacts for the GitHub push...")
     sync_from_bucket(REALTIME_FILES, bucket)
     update_readme_access_date()
+    print("Pushing to GitHub...")
     push_to_github(
         GITHUB_STATIC_FILES + REALTIME_FILES,
         "Update MVV data and plots",
     )
+    print("Done.")
 
 
 if __name__ == "__main__":
