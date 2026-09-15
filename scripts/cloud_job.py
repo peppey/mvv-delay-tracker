@@ -134,12 +134,29 @@ def push_to_github(paths: list[str], message: str) -> None:
             if source.exists():
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, destination)
+        paths_to_add = [
+            relative_path
+            for relative_path in paths
+            if (checkout / relative_path).exists()
+        ]
+        missing_paths = [
+            relative_path
+            for relative_path in paths
+            if relative_path not in paths_to_add
+        ]
+        if missing_paths:
+            logger.warning(
+                "Skipping missing GitHub files: %s", ", ".join(missing_paths)
+            )
+        if not paths_to_add:
+            logger.info("No GitHub files available to stage.")
+            return
         run_command("git", "-C", str(checkout), "config", "user.name", "cloud-run[bot]")
         run_command(
             "git", "-C", str(checkout), "config", "user.email",
             "cloud-run[bot]@users.noreply.github.com",
         )
-        run_command("git", "-C", str(checkout), "add", "--", *paths)
+        run_command("git", "-C", str(checkout), "add", "--", *paths_to_add)
         changes = subprocess.run(
             ["git", "-C", str(checkout), "diff", "--cached", "--quiet"],
             check=False,
