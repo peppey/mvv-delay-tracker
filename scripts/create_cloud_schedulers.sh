@@ -37,7 +37,7 @@ gcloud scheduler jobs create http mvv-realtime-update \
 
 gcloud scheduler jobs create http mvv-static-update \
   --location="${REGION}" \
-  --schedule="0 3 * * *" \
+  --schedule="0 9,12,15 * * *" \
   --time-zone="Europe/Berlin" \
   --uri="${RUN_API}/static-update:run" \
   --http-method=POST \
@@ -46,7 +46,7 @@ gcloud scheduler jobs create http mvv-static-update \
   --project="${PROJECT_ID}" \
   2>/dev/null || gcloud scheduler jobs update http mvv-static-update \
     --location="${REGION}" \
-    --schedule="0 3 * * *" \
+    --schedule="0 9,12,15 * * *" \
     --time-zone="Europe/Berlin" \
     --uri="${RUN_API}/static-update:run" \
     --http-method=POST \
