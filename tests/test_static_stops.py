@@ -64,3 +64,51 @@ def test_update_munich_stops_only_writes_changes(monkeypatch, tmp_path):
     assert update_munich_stops(make_stops(), output_path, geojson_path)
     assert not find_changed_munich_stops(make_stops(), output_path, geojson_path)
     assert not update_munich_stops(make_stops(), output_path, geojson_path)
+
+
+def test_create_munich_stops_includes_all_stops_of_relevant_lines(
+    monkeypatch, tmp_path
+):
+    geojson_path = tmp_path / "munich.geojson"
+    lines_path = tmp_path / "munich_lines.csv"
+    make_geojson(geojson_path)
+    monkeypatch.setattr(
+        "mvv_delay_tracker.static.static_stops.wgs84_to_utm32",
+        lambda latitude, longitude: (latitude, longitude),
+    )
+
+    stops = pd.DataFrame({
+        "stop_id": ["munich", "petershausen", "other"],
+        "stop_name": ["Munich", "Petershausen", "Other"],
+        "stop_lat": [1.0, 20.0, 20.0],
+        "stop_lon": [1.0, 20.0, 20.0],
+    }).to_csv(index=False).encode("utf-8")
+    routes = pd.DataFrame({
+        "route_id": ["s2", "sev", "other"],
+        "route_short_name": ["S2", "SEV S2", "X"],
+        "route_long_name": ["S-Bahn", "Schienenersatzverkehr S2", "Other"],
+    }).to_csv(index=False).encode("utf-8")
+    trips = pd.DataFrame({
+        "trip_id": ["trip-s2", "trip-sev", "trip-other"],
+        "route_id": ["s2", "sev", "other"],
+    }).to_csv(index=False).encode("utf-8")
+    stop_times = pd.DataFrame({
+        "trip_id": ["trip-s2", "trip-s2", "trip-sev", "trip-other"],
+        "stop_id": ["munich", "petershausen", "munich", "other"],
+    }).to_csv(index=False).encode("utf-8")
+    pd.DataFrame({"line": ["S2"]}).to_csv(lines_path, index=False)
+
+    result = pd.read_csv(
+        __import__("io").BytesIO(
+            create_munich_stops_csv(
+                stops,
+                geojson_path,
+                routes,
+                trips,
+                stop_times,
+                lines_path,
+            )
+        )
+    )
+
+    assert set(result["stop_name"]) == {"Munich", "Petershausen"}
