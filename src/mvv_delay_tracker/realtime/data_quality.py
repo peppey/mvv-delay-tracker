@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
@@ -7,10 +8,10 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 from mvv_delay_tracker.realtime.data_update import load_existing_realtime_data
-from mvv_delay_tracker.static.static_data import download_static_file
 
 
 FAILURE_PATH = Path("data/quality/realtime_departure_failures.csv")
+QUALITY_STATE_PATH = Path("data/quality/.data_quality_state.json")
 COMPARISON_TOLERANCE_SECONDS = 1
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
 FAILURE_COLUMNS = [
@@ -173,22 +174,53 @@ def append_failures(
     failures.to_csv(output_path, mode="a", header=write_header, index=False)
 
 
+def _load_last_check_time(state_path: Path) -> datetime | None:
+    if not state_path.exists():
+        return None
+    data = json.loads(state_path.read_text(encoding="utf-8"))
+    return datetime.fromisoformat(data["last_run_timestamp"])
+
+
+def _save_last_check_time(state_path: Path, run_timestamp: datetime) -> None:
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps({"last_run_timestamp": run_timestamp.isoformat()}),
+        encoding="utf-8",
+    )
+
+
 def run_data_quality_check(
     realtime_path: str = "data/realtime/mvv_realtime.parquet",
     output_path: Path = FAILURE_PATH,
     now: datetime | None = None,
+    static_data_directory: Path = Path("data/static"),
+    state_path: Path = QUALITY_STATE_PATH,
 ) -> pd.DataFrame:
-    """Check the last 24 hours of stored realtime observations."""
+    """Check realtime observations recorded since the last check."""
     run_timestamp = now or datetime.now(timezone.utc)
     realtime_data = load_existing_realtime_data(realtime_path)
-    stop_times = load_stop_times(download_static_file("stop_times.txt"))
+
+    stop_times_path = static_data_directory / "stop_times.txt"
+    if not stop_times_path.exists():
+        raise FileNotFoundError(
+            f"{stop_times_path} is missing; run the static update first "
+            "instead of re-downloading the GTFS archive here."
+        )
+    stop_times = load_stop_times(
+        stop_times_path.read_bytes(), static_data_directory
+    )
+
+    window_start = _load_last_check_time(state_path) or (
+        run_timestamp - timedelta(hours=24)
+    )
     failures = find_departure_failures(
         realtime_data,
         stop_times,
         run_timestamp,
-        run_timestamp - timedelta(hours=24),
+        window_start,
     )
     append_failures(failures, output_path)
+    _save_last_check_time(state_path, run_timestamp)
     return failures
 
 
