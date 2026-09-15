@@ -55,13 +55,16 @@ jobs:
           for job_config in "realtime-update:realtime" "static-update:static"; do
             job="${job_config%%:*}"
             job_type="${job_config##*:}"
+            cpu="2"
             memory="4Gi"
             if [[ "$job_type" == "static" ]]; then
-              memory="8Gi"
+              cpu="4"
+              memory="16Gi"
             fi
             gcloud run jobs deploy "$job" \
               --image "${IMAGE}:${GITHUB_SHA}" \
               --region "${REGION}" \
+              --cpu "$cpu" \
               --memory "$memory" \
               --service-account "mvv-delay-tracker-runtime@${PROJECT_ID}.iam.gserviceaccount.com" \
               --set-env-vars "MVV_JOB_TYPE=${job_type},MVV_DATA_BUCKET=mvv-delay-tracker-data,GITHUB_REPOSITORY=peppey/mvv-delay-tracker" \
