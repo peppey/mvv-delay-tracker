@@ -38,6 +38,7 @@ STATIC_FILES = [
     "data/static/routes.txt",
     "data/static/trips.txt",
     "data/static/munich_stops.csv",
+    "data/static/stops.txt",
     "data/static/stop_times.txt",
     "data/static/calendar.txt",
     "data/static/calendar_dates.txt",
