@@ -65,12 +65,25 @@ GITHUB_STATIC_FILES = [
 
 
 def sync_from_bucket(paths: list[str], bucket: storage.Bucket) -> None:
+    downloaded_paths = []
+    missing_paths = []
     for relative_path in paths:
         destination = Path(relative_path)
         blob = bucket.blob(relative_path)
         if blob.exists():
             destination.parent.mkdir(parents=True, exist_ok=True)
             blob.download_to_filename(destination)
+            downloaded_paths.append(relative_path)
+        else:
+            missing_paths.append(relative_path)
+    logger.info(
+        "Downloaded %d/%d paths from bucket '%s'.",
+        len(downloaded_paths),
+        len(paths),
+        bucket.name,
+    )
+    if missing_paths:
+        logger.warning("Missing GCS paths: %s", ", ".join(missing_paths))
 
 
 def sync_to_bucket(paths: list[str], bucket: storage.Bucket) -> None:
@@ -186,6 +199,10 @@ def main() -> None:
         return
 
     os.environ["KEEP_TEMPORARY_STATIC_FILES"] = "true"
+    # Completeness/quality checks read the realtime parquet, so it must be
+    # synced before they run, not just before the GitHub push.
+    logger.info("Syncing latest realtime data for the completeness check...")
+    sync_from_bucket(REALTIME_FILES, bucket)
     logger.info("Running static-update...")
     run_command("python", "scripts/update_static_data.py")
     logger.info("Running realtime data quality check...")
@@ -196,7 +213,7 @@ def main() -> None:
     logger.info("Creating versioned parquet backup...")
     backup_parquet(bucket)
 
-    # Pull the latest realtime artifacts so the daily GitHub push includes them.
+    # Re-sync in case a realtime run updated the bucket while the checks ran.
     logger.info("Fetching latest realtime artifacts for the GitHub push...")
     sync_from_bucket(REALTIME_FILES, bucket)
     update_readme_access_date()
