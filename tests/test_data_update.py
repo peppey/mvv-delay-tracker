@@ -265,7 +265,7 @@ def test_update_realtime_data_prediction_is_replaced_by_confirmation():
     assert result.iloc[0]["is_prediction"] == False
 
 
-def test_update_realtime_data_confirmation_is_not_replaced_by_prediction():
+def test_update_realtime_data_latest_prediction_replaces_confirmation():
     existing_df = pd.DataFrame({
         "trip_id": ["trip_123"],
         "start_date": ["20260909"],
@@ -285,8 +285,8 @@ def test_update_realtime_data_confirmation_is_not_replaced_by_prediction():
     result = update_realtime_data(existing_df, new_df)
 
     assert len(result) == 1
-    assert result.iloc[0]["departure_delay"] == 30
-    assert result.iloc[0]["is_prediction"] == False
+    assert result.iloc[0]["departure_delay"] == 999
+    assert result.iloc[0]["is_prediction"] == True
 
 
 def test_save_realtime_data(tmp_path):

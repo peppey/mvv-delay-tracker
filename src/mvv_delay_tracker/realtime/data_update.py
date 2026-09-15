@@ -195,26 +195,16 @@ def update_realtime_data(
         ignore_index=True
     )
 
-    # A confirmed observation (is_prediction == False) always replaces a
-    # prediction for the same trip/stop. Among observations with the same
-    # is_prediction status, the most recently added one wins.
-    ranked_df = combined_df.sort_values(
-        "is_prediction",
-        ascending=False,
-        kind="stable",
-    )
-    kept_index = ranked_df.drop_duplicates(
-        subset=[
-            "trip_id",
-            "start_date",
-            "stop_id",
-            "agency_id",
-        ],
-        keep="last",
-    ).index
-
     combined_df = (
-        combined_df[combined_df.index.isin(kept_index)]
+        combined_df.drop_duplicates(
+            subset=[
+                "trip_id",
+                "start_date",
+                "stop_id",
+                "agency_id",
+            ],
+            keep="last",
+        )
         .reset_index(drop=True)
     )
 

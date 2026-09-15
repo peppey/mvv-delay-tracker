@@ -24,7 +24,7 @@ def main() -> None:
     try:
         logger.info("Checking for new static GTFS data...")
         remote_files = download_static_files(include_stops=True)
-        required_files = (*FILES_TO_UPDATE, "stops.txt")
+        required_files = (*FILES_TO_UPDATE, "munich_stops.csv")
         if not remote_files and not all(
             (STATIC_DATA_DIR / filename).exists()
             for filename in required_files
