@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import re
 import shutil
@@ -10,6 +11,9 @@ from pathlib import Path
 from urllib.parse import quote
 
 from google.cloud import storage
+
+
+logger = logging.getLogger(__name__)
 
 
 BUCKET_NAME = os.environ.get("MVV_DATA_BUCKET", "mvv-delay-tracker-data")
@@ -130,18 +134,35 @@ def push_to_github(paths: list[str], message: str) -> None:
             if source.exists():
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(source, destination)
+        paths_to_add = [
+            relative_path
+            for relative_path in paths
+            if (checkout / relative_path).exists()
+        ]
+        missing_paths = [
+            relative_path
+            for relative_path in paths
+            if relative_path not in paths_to_add
+        ]
+        if missing_paths:
+            logger.warning(
+                "Skipping missing GitHub files: %s", ", ".join(missing_paths)
+            )
+        if not paths_to_add:
+            logger.info("No GitHub files available to stage.")
+            return
         run_command("git", "-C", str(checkout), "config", "user.name", "cloud-run[bot]")
         run_command(
             "git", "-C", str(checkout), "config", "user.email",
             "cloud-run[bot]@users.noreply.github.com",
         )
-        run_command("git", "-C", str(checkout), "add", "--", *paths)
+        run_command("git", "-C", str(checkout), "add", "--", *paths_to_add)
         changes = subprocess.run(
             ["git", "-C", str(checkout), "diff", "--cached", "--quiet"],
             check=False,
         )
         if changes.returncode == 0:
-            print("No GitHub changes to push.")
+            logger.info("No GitHub changes to push.")
             return
         run_command("git", "-C", str(checkout), "commit", "-m", message)
         run_command("git", "-C", str(checkout), "push", "origin", GITHUB_BRANCH)
@@ -154,38 +175,41 @@ def main() -> None:
 
     paths = REALTIME_FILES if job_name == "realtime" else STATIC_FILES
     bucket = storage.Client().bucket(BUCKET_NAME)
-    print(f"Syncing {len(paths)} paths from bucket '{BUCKET_NAME}'...")
+    logger.info("Syncing %d paths from bucket '%s'...", len(paths), BUCKET_NAME)
     sync_from_bucket(paths, bucket)
 
     if job_name == "realtime":
         # Runs every 10 minutes: only update the bucket, no GitHub push.
         run_command("python", "scripts/update_parquet.py")
-        print("Syncing updated realtime files back to the bucket...")
+        logger.info("Syncing updated realtime files back to the bucket...")
         sync_to_bucket(paths, bucket)
         return
 
     os.environ["KEEP_TEMPORARY_STATIC_FILES"] = "true"
-    print("Running static-update...")
+    logger.info("Running static-update...")
     run_command("python", "scripts/update_static_data.py")
-    print("Running realtime data quality check...")
+    logger.info("Running realtime data quality check...")
     run_command("python", "scripts/check_realtime_data_quality.py")
-    print("Syncing updated static files back to the bucket...")
+    logger.info("Syncing updated static files back to the bucket...")
     sync_to_bucket(paths, bucket)
     # Versioned parquet backup happens once a day, alongside the static update.
-    print("Creating versioned parquet backup...")
+    logger.info("Creating versioned parquet backup...")
     backup_parquet(bucket)
 
     # Pull the latest realtime artifacts so the daily GitHub push includes them.
-    print("Fetching latest realtime artifacts for the GitHub push...")
+    logger.info("Fetching latest realtime artifacts for the GitHub push...")
     sync_from_bucket(REALTIME_FILES, bucket)
     update_readme_access_date()
-    print("Pushing to GitHub...")
+    logger.info("Pushing to GitHub...")
     push_to_github(
         GITHUB_STATIC_FILES + REALTIME_FILES,
         "Update MVV data and plots",
     )
-    print("Done.")
+    logger.info("Done.")
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
     main()

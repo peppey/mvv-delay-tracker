@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from pathlib import Path
@@ -9,6 +10,8 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 from mvv_delay_tracker.realtime.data_update import load_existing_realtime_data
 
+
+logger = logging.getLogger(__name__)
 
 FAILURE_PATH = Path("data/quality/realtime_departure_failures.csv")
 QUALITY_STATE_PATH = Path("data/quality/.data_quality_state.json")
@@ -226,8 +229,11 @@ def run_data_quality_check(
 
 def main() -> None:
     failures = run_data_quality_check()
-    print(f"Departure quality check failures: {len(failures)}")
+    logger.info("Departure quality check failures: %d", len(failures))
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    )
     main()
