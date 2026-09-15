@@ -65,9 +65,13 @@ def _point_is_inside_munich(
 def create_munich_stops_csv(
     stops_bytes: bytes,
     geojson_path: str | Path = "data/static/munich.geojson",
+    routes_bytes: bytes | None = None,
+    trips_bytes: bytes | None = None,
+    stop_times_bytes: bytes | None = None,
+    lines_path: str | Path = "data/static/munich_lines.csv",
 ) -> bytes:
-    """Create the Munich stop list from GTFS stops and the city boundary."""
-    stops_df = pd.read_csv(BytesIO(stops_bytes))
+    """Create the stop list for Munich lines and their complete routes."""
+    stops_df = pd.read_csv(BytesIO(stops_bytes), dtype={"stop_id": str})
     with Path(geojson_path).open(encoding="utf-8") as file:
         munich_map = json.load(file)
 
@@ -85,16 +89,87 @@ def create_munich_stops_csv(
         axis=1,
     )
 
-    return stops_df[stops_df["inside_munich"]].to_csv().encode("utf-8")
+    if all(
+        value is not None
+        for value in (routes_bytes, trips_bytes, stop_times_bytes)
+    ):
+        routes = pd.read_csv(BytesIO(routes_bytes), dtype=str)
+        trips = pd.read_csv(BytesIO(trips_bytes), dtype=str)
+        stop_times = pd.read_csv(
+            BytesIO(stop_times_bytes),
+            usecols=["trip_id", "stop_id"],
+            dtype=str,
+        )
+        lines = pd.read_csv(lines_path, dtype=str)
+        configured_lines = set(lines["line"].dropna().str.strip())
+        route_names = routes[
+            ["route_id", "route_short_name", "route_long_name"]
+        ].fillna("")
+        route_names["route_short_name"] = (
+            route_names["route_short_name"].str.strip()
+        )
+        route_names["route_long_name"] = (
+            route_names["route_long_name"].str.strip()
+        )
+        route_names["is_configured"] = route_names["route_short_name"].isin(
+            configured_lines
+        )
+        route_names["is_sev"] = (
+            route_names["route_short_name"].str.contains(
+                "SEV", case=False, regex=False
+            )
+            | route_names["route_long_name"].str.contains(
+                "SEV", case=False, regex=False
+            )
+        )
+        route_names = route_names.loc[
+            route_names["is_configured"] | route_names["is_sev"]
+        ]
+
+        route_stops = (
+            stop_times
+            .merge(trips[["trip_id", "route_id"]], on="trip_id")
+            .merge(route_names[["route_id"]], on="route_id")
+            .merge(
+                stops_df[["stop_id", "inside_munich"]],
+                on="stop_id",
+                how="left",
+            )
+        )
+        routes_with_munich_stop = set(
+            route_stops.loc[route_stops["inside_munich"], "route_id"]
+        )
+        included_stop_ids = set(
+            route_stops.loc[
+                route_stops["route_id"].isin(routes_with_munich_stop),
+                "stop_id",
+            ]
+        )
+        result = stops_df[stops_df["stop_id"].isin(included_stop_ids)]
+    else:
+        result = stops_df[stops_df["inside_munich"]]
+
+    return result.to_csv().encode("utf-8")
 
 
 def find_changed_munich_stops(
     stops_bytes: bytes,
     output_path: Path = Path("data/static/munich_stops.csv"),
     geojson_path: str | Path = "data/static/munich.geojson",
+    routes_bytes: bytes | None = None,
+    trips_bytes: bytes | None = None,
+    stop_times_bytes: bytes | None = None,
+    lines_path: str | Path = "data/static/munich_lines.csv",
 ) -> bool:
     """Return whether the generated Munich stop list differs locally."""
-    generated = create_munich_stops_csv(stops_bytes, geojson_path)
+    generated = create_munich_stops_csv(
+        stops_bytes,
+        geojson_path,
+        routes_bytes,
+        trips_bytes,
+        stop_times_bytes,
+        lines_path,
+    )
     return not output_path.exists() or output_path.read_bytes() != generated
 
 
@@ -102,9 +177,20 @@ def update_munich_stops(
     stops_bytes: bytes,
     output_path: Path = Path("data/static/munich_stops.csv"),
     geojson_path: str | Path = "data/static/munich.geojson",
+    routes_bytes: bytes | None = None,
+    trips_bytes: bytes | None = None,
+    stop_times_bytes: bytes | None = None,
+    lines_path: str | Path = "data/static/munich_lines.csv",
 ) -> bool:
     """Write the Munich stop list when its generated content changed."""
-    generated = create_munich_stops_csv(stops_bytes, geojson_path)
+    generated = create_munich_stops_csv(
+        stops_bytes,
+        geojson_path,
+        routes_bytes,
+        trips_bytes,
+        stop_times_bytes,
+        lines_path,
+    )
     if output_path.exists() and output_path.read_bytes() == generated:
         return False
 
