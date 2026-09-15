@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -7,6 +8,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from mvv_delay_tracker.realtime.data_update import load_existing_realtime_data
+
+
+logger = logging.getLogger(__name__)
 
 
 COMPLETENESS_PATH = Path("data/quality/munich_trip_completeness.csv")
@@ -311,8 +315,8 @@ def build_completeness_report(
         rows.append(calculate_trip_completeness(
             planned, realtime_data, period_start, period_end
         ))
-        print(
-            f"  Trip completeness period {period_start} - {period_end} done."
+        logger.info(
+            "Trip completeness period %s - %s done.", period_start, period_end
         )
         period_start += timedelta(hours=24)
     return pd.DataFrame(rows, columns=REPORT_COLUMNS)
@@ -355,8 +359,8 @@ def build_line_completeness_report(
         reports.append(calculate_line_completeness(
             planned, realtime_data, period_start, period_end
         ))
-        print(
-            f"  Line completeness period {period_start} - {period_end} done."
+        logger.info(
+            "Line completeness period %s - %s done.", period_start, period_end
         )
         period_start += timedelta(hours=24)
     if not reports:
@@ -491,15 +495,15 @@ def run_data_completeness_check(
     Only periods after the last saved run are recalculated; older periods
     are kept as-is.
     """
-    print("Loading existing realtime data for completeness check...")
+    logger.info("Loading existing realtime data for completeness check...")
     realtime_data = load_existing_realtime_data(realtime_path)
-    print(f"Loaded {len(realtime_data)} realtime observations.")
+    logger.info("Loaded %d realtime observations.", len(realtime_data))
 
     kept_report, resume_from = _resume_report(output_path)
-    print(
-        "Resuming trip completeness report from "
-        f"{resume_from}." if resume_from else "Building trip completeness report from scratch."
-    )
+    if resume_from:
+        logger.info("Resuming trip completeness report from %s.", resume_from)
+    else:
+        logger.info("Building trip completeness report from scratch.")
     new_report = build_completeness_report(
         realtime_data,
         static_data_directory,
@@ -510,14 +514,15 @@ def run_data_completeness_check(
         if kept_report is not None and not kept_report.empty
         else new_report
     )
-    print(f"Trip completeness report: {len(new_report)} new period(s).")
+    logger.info("Trip completeness report: %d new period(s).", len(new_report))
 
     kept_line_report, line_resume_from = _resume_report(LINE_COMPLETENESS_PATH)
-    print(
-        "Resuming line completeness report from "
-        f"{line_resume_from}." if line_resume_from
-        else "Building line completeness report from scratch."
-    )
+    if line_resume_from:
+        logger.info(
+            "Resuming line completeness report from %s.", line_resume_from
+        )
+    else:
+        logger.info("Building line completeness report from scratch.")
     new_line_report = build_line_completeness_report(
         realtime_data,
         static_data_directory,
@@ -528,10 +533,12 @@ def run_data_completeness_check(
         if kept_line_report is not None and not kept_line_report.empty
         else new_line_report
     )
-    print(f"Line completeness report: {len(new_line_report)} new row(s).")
+    logger.info(
+        "Line completeness report: %d new row(s).", len(new_line_report)
+    )
 
     save_completeness_report(report, output_path)
     save_completeness_report(line_report, LINE_COMPLETENESS_PATH)
     plot_completeness(report, plot_path)
-    print(f"Saved {output_path} and {plot_path}.")
+    logger.info("Saved %s and %s.", output_path, plot_path)
     return report
