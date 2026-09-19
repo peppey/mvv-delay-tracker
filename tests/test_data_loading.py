@@ -81,6 +81,8 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
         "route_id": [1, 2, 3],
         "agency_id": [191, 364, 999],
         "route_short_name": ["S1", "S8", "X1"],
+        "route_long_name": ["", "", ""],
+        "route_type": ["3", "3", "3"],
     })
 
     trips = pd.DataFrame({
@@ -94,7 +96,11 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
     })
     agencies = pd.DataFrame({
         "agency_id": [191, 364, 999],
-        "agency_name": ["Agency 191", "Agency 364", "Agency 999"],
+        "agency_name": [
+            "DB S-Bahn München",
+            "DB S-Bahn München",
+            "Agency 999",
+        ],
     })
 
     static_dir = tmp_path / "static"
@@ -104,6 +110,10 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
     trips.to_csv(static_dir / "trips.txt", index=False)
     agencies.to_csv(static_dir / "agency.txt", index=False)
     stops.to_csv(static_dir / "munich_stops.csv", index=False)
+    pd.DataFrame({
+        "line": ["S1", "S8"],
+        "mode": ["S-Bahn", "S-Bahn"],
+    }).to_csv(static_dir / "munich_lines.csv", index=False)
 
     trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
@@ -113,17 +123,12 @@ def test_preprocess_gtfs_returns_line_and_agency(tmp_path):
         "101": {
             "line": "S1",
             "agency_id": "191",
-            "agency_name": "Agency 191",
+            "agency_name": "DB S-Bahn München",
         },
         "102": {
             "line": "S8",
             "agency_id": "364",
-            "agency_name": "Agency 364",
-        },
-        "103": {
-            "line": "X1",
-            "agency_id": "999",
-            "agency_name": "Agency 999",
+            "agency_name": "DB S-Bahn München",
         },
     }
 
@@ -138,6 +143,8 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
         "route_id": [123],
         "agency_id": [191],
         "route_short_name": ["S1"],
+        "route_long_name": [""],
+        "route_type": ["3"],
     })
 
     trips = pd.DataFrame({
@@ -158,8 +165,12 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
     stops.to_csv(static_dir / "munich_stops.csv", index=False)
     pd.DataFrame({
         "agency_id": [191],
-        "agency_name": ["Agency 191"],
+        "agency_name": ["DB S-Bahn München"],
     }).to_csv(static_dir / "agency.txt", index=False)
+    pd.DataFrame({
+        "line": ["S1"],
+        "mode": ["S-Bahn"],
+    }).to_csv(static_dir / "munich_lines.csv", index=False)
 
     trip_info, stop_names = preprocess_gtfs(
         data_dir=str(tmp_path),
@@ -169,7 +180,7 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
         "456": {
             "line": "S1",
             "agency_id": "191",
-            "agency_name": "Agency 191",
+            "agency_name": "DB S-Bahn München",
         }
     }
 
@@ -178,11 +189,16 @@ def test_preprocess_gtfs_converts_ids_to_strings(tmp_path):
     }
 
 
-def test_preprocess_gtfs_keeps_all_agencies(tmp_path):
+def test_preprocess_gtfs_filters_non_munich_agencies(tmp_path):
+    """A route_short_name collision from an unrelated agency (e.g. "S1"
+    reused elsewhere in Germany) must be excluded from trip_info, even
+    though its trips might still stop at a Munich stop."""
     routes = pd.DataFrame({
         "route_id": ["munich", "outside"],
         "agency_id": ["191", "999"],
-        "route_short_name": ["S1", "X1"],
+        "route_short_name": ["S1", "S1"],
+        "route_long_name": ["", ""],
+        "route_type": ["3", "3"],
     })
 
     trips = pd.DataFrame({
@@ -201,24 +217,24 @@ def test_preprocess_gtfs_keeps_all_agencies(tmp_path):
     trips.to_csv(static_dir / "trips.txt", index=False)
     pd.DataFrame({
         "agency_id": [191, 999],
-        "agency_name": ["Agency 191", "Agency 999"],
+        "agency_name": ["DB S-Bahn München", "Agency 999"],
     }).to_csv(static_dir / "agency.txt", index=False)
     stops.to_csv(static_dir / "munich_stops.csv", index=False)
+    pd.DataFrame({
+        "line": ["S1"],
+        "mode": ["S-Bahn"],
+    }).to_csv(static_dir / "munich_lines.csv", index=False)
 
     trip_info, _ = preprocess_gtfs(
         data_dir=str(tmp_path),
     )
 
-    assert trip_info["trip_munich"] == {
-        "line": "S1",
-        "agency_id": "191",
-        "agency_name": "Agency 191",
-    }
-
-    assert trip_info["trip_outside"] == {
-        "line": "X1",
-        "agency_id": "999",
-        "agency_name": "Agency 999",
+    assert trip_info == {
+        "trip_munich": {
+            "line": "S1",
+            "agency_id": "191",
+            "agency_name": "DB S-Bahn München",
+        }
     }
 
 

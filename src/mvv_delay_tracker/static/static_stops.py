@@ -74,6 +74,71 @@ def _point_is_inside_munich(
     return False
 
 
+def filter_munich_routes(
+    routes_df: pd.DataFrame,
+    agency_df: pd.DataFrame,
+    lines_path: str | Path = "data/static/munich_lines.csv",
+) -> pd.DataFrame:
+    """Return only the routes.txt rows that are genuine Munich lines.
+
+    route_short_name values are reused by unrelated agencies nationwide, so a
+    name match against munich_lines.csv only counts if the route's actual
+    agency and route_type also match the line's configured mode.
+    """
+    lines = pd.read_csv(lines_path, dtype=str)
+    expected_agency_and_types_by_line = {
+        line.strip(): MODE_TO_AGENCY_AND_ROUTE_TYPES[mode.strip()]
+        for line, mode in zip(lines["line"], lines["mode"])
+    }
+    munich_agency_names = {
+        agency_name
+        for agency_name, _ in expected_agency_and_types_by_line.values()
+    }
+
+    route_names = routes_df[
+        ["route_id", "route_short_name", "route_long_name", "agency_id", "route_type"]
+    ].fillna("")
+    route_names["route_short_name"] = (
+        route_names["route_short_name"].str.strip()
+    )
+    route_names["route_long_name"] = (
+        route_names["route_long_name"].str.strip()
+    )
+    route_names = route_names.merge(
+        agency_df[["agency_id", "agency_name"]], on="agency_id", how="left"
+    )
+    route_names["agency_name"] = route_names["agency_name"].fillna("")
+
+    def _matches_configured_line(row: pd.Series) -> bool:
+        expected = expected_agency_and_types_by_line.get(
+            row["route_short_name"]
+        )
+        if expected is None:
+            return False
+        expected_agency_name, expected_route_types = expected
+        return (
+            row["agency_name"] == expected_agency_name
+            and row["route_type"] in expected_route_types
+        )
+
+    route_names["is_configured"] = route_names.apply(
+        _matches_configured_line, axis=1
+    )
+    route_names["is_sev"] = route_names["agency_name"].isin(
+        munich_agency_names
+    ) & (
+        route_names["route_short_name"].str.contains(
+            "SEV", case=False, regex=False
+        )
+        | route_names["route_long_name"].str.contains(
+            "SEV", case=False, regex=False
+        )
+    )
+    return route_names.loc[
+        route_names["is_configured"] | route_names["is_sev"]
+    ]
+
+
 def create_munich_stops_csv(
     stops_bytes: bytes,
     geojson_path: str | Path = "data/static/munich.geojson",
@@ -114,58 +179,7 @@ def create_munich_stops_csv(
             dtype=str,
         )
         agency = pd.read_csv(BytesIO(agency_bytes), dtype=str)
-        lines = pd.read_csv(lines_path, dtype=str)
-        expected_agency_and_types_by_line = {
-            line.strip(): MODE_TO_AGENCY_AND_ROUTE_TYPES[mode.strip()]
-            for line, mode in zip(lines["line"], lines["mode"])
-        }
-        munich_agency_names = {
-            agency_name
-            for agency_name, _ in expected_agency_and_types_by_line.values()
-        }
-
-        route_names = routes[
-            ["route_id", "route_short_name", "route_long_name", "agency_id", "route_type"]
-        ].fillna("")
-        route_names["route_short_name"] = (
-            route_names["route_short_name"].str.strip()
-        )
-        route_names["route_long_name"] = (
-            route_names["route_long_name"].str.strip()
-        )
-        route_names = route_names.merge(
-            agency[["agency_id", "agency_name"]], on="agency_id", how="left"
-        )
-        route_names["agency_name"] = route_names["agency_name"].fillna("")
-
-        def _matches_configured_line(row: pd.Series) -> bool:
-            expected = expected_agency_and_types_by_line.get(
-                row["route_short_name"]
-            )
-            if expected is None:
-                return False
-            expected_agency_name, expected_route_types = expected
-            return (
-                row["agency_name"] == expected_agency_name
-                and row["route_type"] in expected_route_types
-            )
-
-        route_names["is_configured"] = route_names.apply(
-            _matches_configured_line, axis=1
-        )
-        route_names["is_sev"] = route_names["agency_name"].isin(
-            munich_agency_names
-        ) & (
-            route_names["route_short_name"].str.contains(
-                "SEV", case=False, regex=False
-            )
-            | route_names["route_long_name"].str.contains(
-                "SEV", case=False, regex=False
-            )
-        )
-        route_names = route_names.loc[
-            route_names["is_configured"] | route_names["is_sev"]
-        ]
+        route_names = filter_munich_routes(routes, agency, lines_path)
 
         route_stops = (
             stop_times
