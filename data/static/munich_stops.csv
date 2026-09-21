@@ -1,4 +1,4 @@
-,stop_name,parent_station,stop_id,stop_lat,stop_lon,location_type,platform_code,utm_x,utm_y,inside_munich
+,stop_name,parent_station,swas ich top_id,stop_lat,stop_lon,location_type,platform_code,utm_x,utm_y,inside_munich
 715,Aachen station west (Henricistraße),455807.0,324146,50.783516,6.072513,,,293642.92335032375,5629837.524921453,False
 1758,Aberlestraße,240725.0,130492,48.122707,11.545112,,,689396.5446287754,5333071.822437866,True
 1759,Aberlestraße,240725.0,206887,48.122562,11.545391,,,689417.8385591875,5333056.394797471,True

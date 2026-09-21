@@ -5,6 +5,8 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 from google.transit import gtfs_realtime_pb2
 
+from mvv_delay_tracker.static.static_stops import filter_munich_routes
+
 
 GTFS_REALTIME_URL = "https://realtime.gtfs.de/realtime-free.pb"
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
@@ -76,7 +78,8 @@ def preprocess_gtfs(
     Parameters
     ----------
     data_dir : str
-        Directory containing routes.txt, trips.txt and munich_stops.csv.
+        Directory containing routes.txt, agency.txt, trips.txt,
+        munich_lines.csv and munich_stops.csv.
 
     Returns
     -------
@@ -91,10 +94,7 @@ def preprocess_gtfs(
 
     routes_df = pd.read_csv(
         static_data_directory / "routes.txt",
-        dtype={
-            "route_id": str,
-            "agency_id": str,
-        },
+        dtype=str,
     )
 
     agency_df = pd.read_csv(
@@ -105,6 +105,12 @@ def preprocess_gtfs(
         agency_df
         .set_index("agency_id")["agency_name"]
         .to_dict()
+    )
+
+    configured_routes = filter_munich_routes(
+        routes_df,
+        agency_df,
+        lines_path=static_data_directory / "munich_lines.csv",
     )
 
     trips_df = pd.read_csv(
@@ -123,7 +129,7 @@ def preprocess_gtfs(
     )
 
     route_info = (
-        routes_df[
+        configured_routes[
             [
                 "route_id",
                 "route_short_name",

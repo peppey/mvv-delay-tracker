@@ -87,6 +87,8 @@ def test_create_munich_stops_includes_all_stops_of_relevant_lines(
         "route_id": ["s2", "sev", "other"],
         "route_short_name": ["S2", "SEV S2", "X"],
         "route_long_name": ["S-Bahn", "Schienenersatzverkehr S2", "Other"],
+        "agency_id": ["mvg-sbahn", "mvg-sbahn", "other-agency"],
+        "route_type": ["3", "3", "3"],
     }).to_csv(index=False).encode("utf-8")
     trips = pd.DataFrame({
         "trip_id": ["trip-s2", "trip-sev", "trip-other"],
@@ -96,7 +98,13 @@ def test_create_munich_stops_includes_all_stops_of_relevant_lines(
         "trip_id": ["trip-s2", "trip-s2", "trip-sev", "trip-other"],
         "stop_id": ["munich", "petershausen", "munich", "other"],
     }).to_csv(index=False).encode("utf-8")
-    pd.DataFrame({"line": ["S2"]}).to_csv(lines_path, index=False)
+    agency = pd.DataFrame({
+        "agency_id": ["mvg-sbahn", "other-agency"],
+        "agency_name": ["DB S-Bahn München", "Other Verkehrsbetrieb"],
+    }).to_csv(index=False).encode("utf-8")
+    pd.DataFrame({"line": ["S2"], "mode": ["S-Bahn"]}).to_csv(
+        lines_path, index=False
+    )
 
     result = pd.read_csv(
         __import__("io").BytesIO(
@@ -106,9 +114,71 @@ def test_create_munich_stops_includes_all_stops_of_relevant_lines(
                 routes,
                 trips,
                 stop_times,
+                agency,
                 lines_path,
             )
         )
     )
 
     assert set(result["stop_name"]) == {"Munich", "Petershausen"}
+
+
+def test_create_munich_stops_ignores_same_named_line_from_other_agency(
+    monkeypatch, tmp_path
+):
+    """A route_short_name collision from an unrelated agency (e.g. a
+    cross-border coach line reusing "S2") must not pull in its far-away
+    stops just because it also touches Munich."""
+    geojson_path = tmp_path / "munich.geojson"
+    lines_path = tmp_path / "munich_lines.csv"
+    make_geojson(geojson_path)
+    monkeypatch.setattr(
+        "mvv_delay_tracker.static.static_stops.wgs84_to_utm32",
+        lambda latitude, longitude: (latitude, longitude),
+    )
+
+    stops = pd.DataFrame({
+        "stop_id": ["munich", "petershausen", "budapest"],
+        "stop_name": ["Munich", "Petershausen", "Budapest"],
+        "stop_lat": [1.0, 20.0, 47.0],
+        "stop_lon": [1.0, 20.0, 19.0],
+    }).to_csv(index=False).encode("utf-8")
+    routes = pd.DataFrame({
+        "route_id": ["s2", "impostor"],
+        "route_short_name": ["S2", "S2"],
+        "route_long_name": ["S-Bahn", "Fernbus Munich-Budapest"],
+        "agency_id": ["mvg-sbahn", "fernbus-agency"],
+        "route_type": ["3", "3"],
+    }).to_csv(index=False).encode("utf-8")
+    trips = pd.DataFrame({
+        "trip_id": ["trip-s2", "trip-impostor"],
+        "route_id": ["s2", "impostor"],
+    }).to_csv(index=False).encode("utf-8")
+    stop_times = pd.DataFrame({
+        "trip_id": ["trip-s2", "trip-s2", "trip-impostor", "trip-impostor"],
+        "stop_id": ["munich", "petershausen", "munich", "budapest"],
+    }).to_csv(index=False).encode("utf-8")
+    agency = pd.DataFrame({
+        "agency_id": ["mvg-sbahn", "fernbus-agency"],
+        "agency_name": ["DB S-Bahn München", "Fernbus GmbH"],
+    }).to_csv(index=False).encode("utf-8")
+    pd.DataFrame({"line": ["S2"], "mode": ["S-Bahn"]}).to_csv(
+        lines_path, index=False
+    )
+
+    result = pd.read_csv(
+        __import__("io").BytesIO(
+            create_munich_stops_csv(
+                stops,
+                geojson_path,
+                routes,
+                trips,
+                stop_times,
+                agency,
+                lines_path,
+            )
+        )
+    )
+
+    assert set(result["stop_name"]) == {"Munich", "Petershausen"}
+

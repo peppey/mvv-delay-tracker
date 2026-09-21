@@ -40,12 +40,14 @@ def main() -> None:
             routes_bytes = remote_files["routes.txt"]
             trips_bytes = remote_files["trips.txt"]
             stop_times_bytes = remote_files["stop_times.txt"]
+            agency_bytes = remote_files["agency.txt"]
             changed_files = update_static_files(remote_files)
             stops_changed = update_munich_stops(
                 stops_bytes,
                 routes_bytes=routes_bytes,
                 trips_bytes=trips_bytes,
                 stop_times_bytes=stop_times_bytes,
+                agency_bytes=agency_bytes,
             )
             if stops_changed:
                 changed_files.append("munich_stops.csv")
