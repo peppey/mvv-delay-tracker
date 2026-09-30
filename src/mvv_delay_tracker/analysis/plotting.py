@@ -10,6 +10,7 @@ import pandas as pd
 from zoneinfo import ZoneInfo
 
 from mvv_delay_tracker.analysis.geographic import wgs84_to_utm32
+from mvv_delay_tracker.realtime.data_update import load_existing_realtime_data
 
 
 LOCAL_TIMEZONE = ZoneInfo("Europe/Berlin")
@@ -29,7 +30,7 @@ def _to_local_naive(series: pd.Series) -> pd.Series:
 
 def load_data(
     geojson_path: str = "data/static/munich.geojson",
-    parquet_path: str = "data/realtime/mvv_realtime.parquet",
+    parquet_path: str = "data/realtime",
 ) -> tuple[dict[str, Any], pd.DataFrame]:
     """
     Load Munich GeoJSON boundary data and MVV real-time data.
@@ -54,9 +55,7 @@ def load_data(
     with open(geojson_path, "r") as file:
         munich_map = json.load(file)
 
-    delay_df = pd.read_parquet(
-        parquet_path
-    )
+    delay_df = load_existing_realtime_data(parquet_path)
 
     return munich_map, delay_df
 
@@ -1443,7 +1442,7 @@ def create_delay_statistics_plot(
 # ============================================================
 
 def generate_plot(
-    data_path: str = "data/realtime/mvv_realtime.parquet",
+    data_path: str = "data/realtime",
     geojson_path: str = "data/static/munich.geojson",
     stops_path: str = "data/static/munich_stops.csv",
     lines_path: str = "data/static/munich_lines.csv",

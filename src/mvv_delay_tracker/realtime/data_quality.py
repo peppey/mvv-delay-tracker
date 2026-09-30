@@ -193,7 +193,7 @@ def _save_last_check_time(state_path: Path, run_timestamp: datetime) -> None:
 
 
 def run_data_quality_check(
-    realtime_path: str = "data/realtime/mvv_realtime.parquet",
+    realtime_path: str = "data/realtime",
     output_path: Path = FAILURE_PATH,
     now: datetime | None = None,
     static_data_directory: Path = Path("data/static"),

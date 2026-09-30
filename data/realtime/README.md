@@ -1,8 +1,9 @@
 # MVV Realtime Data
 
 This directory contains the collected MVV/GTFS-Realtime observations stored in
-`mvv_realtime.parquet`. Each row represents one observed stop visit for a trip
-at a particular observation time.
+daily Parquet partitions under `year=YYYY/month=MM/day=DD/data.parquet`. The
+legacy `mvv_realtime.parquet` remains in this directory unchanged. Each row
+represents one observed stop visit for a trip at a particular observation time.
 
 ## Columns
 

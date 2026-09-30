@@ -502,7 +502,7 @@ def _resume_report(
 
 
 def run_data_completeness_check(
-    realtime_path: str = "data/realtime/mvv_realtime.parquet",
+    realtime_path: str = "data/realtime",
     static_data_directory: Path = Path("data/static"),
     output_path: Path = COMPLETENESS_PATH,
     plot_path: Path = COMPLETENESS_PLOT_PATH,

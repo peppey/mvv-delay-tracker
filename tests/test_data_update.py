@@ -2,6 +2,7 @@ import pandas as pd
 
 from mvv_delay_tracker.realtime.data_update import (
     load_existing_realtime_data,
+    save_realtime_data_by_day,
     update_realtime_data,
     save_realtime_data,
 )
@@ -311,3 +312,24 @@ def test_save_realtime_data(tmp_path):
     result = pd.read_parquet(parquet_path)
 
     pd.testing.assert_frame_equal(result, df)
+
+
+def test_save_realtime_data_by_day_creates_partition(tmp_path):
+    df = pd.DataFrame({
+        "observation_timestamp": ["2026-09-30 10:00:00"],
+        "trip_id": ["trip_123"],
+        "start_date": ["20260930"],
+        "stop_id": ["1001"],
+        "agency_id": ["191"],
+        "departure_delay": [60],
+    })
+
+    save_realtime_data_by_day(df, tmp_path)
+
+    partition_path = (
+        tmp_path / "year=2026" / "month=09" / "day=30" / "data.parquet"
+    )
+    assert partition_path.exists()
+    result = pd.read_parquet(partition_path)
+    assert list(result["trip_id"]) == ["trip_123"]
+
