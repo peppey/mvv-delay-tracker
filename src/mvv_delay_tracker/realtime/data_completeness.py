@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from mvv_delay_tracker.realtime.data_update import load_existing_realtime_data
+from mvv_delay_tracker.static.static_stops import filter_munich_routes
 
 
 logger = logging.getLogger(__name__)
@@ -59,8 +60,24 @@ def load_munich_schedule(
     )
     routes = pd.read_csv(
         static_data_directory / "routes.txt",
-        usecols=["route_id", "route_short_name"],
+        usecols=[
+            "route_id",
+            "route_short_name",
+            "route_long_name",
+            "agency_id",
+            "route_type",
+        ],
         dtype=str,
+    )
+    agencies = pd.read_csv(
+        static_data_directory / "agency.txt",
+        usecols=["agency_id", "agency_name"],
+        dtype=str,
+    )
+    routes = filter_munich_routes(
+        routes,
+        agencies,
+        lines_path=static_data_directory / "munich_lines.csv",
     )
     munich_stop_ids = set(pd.read_csv(
         static_data_directory / "munich_stops.csv",
@@ -87,7 +104,7 @@ def load_munich_schedule(
     schedule = (
         stop_times
         .merge(trips, on="trip_id", how="inner")
-        .merge(routes, on="route_id", how="inner")
+        .merge(routes[["route_id", "route_short_name"]], on="route_id", how="inner")
     )
     schedule["line"] = schedule["route_short_name"].fillna("Unbekannt")
     schedule["departure_seconds"] = schedule["departure_time"].map(
@@ -485,7 +502,7 @@ def _resume_report(
 
 
 def run_data_completeness_check(
-    realtime_path: str = "data/realtime/mvv_realtime.parquet",
+    realtime_path: str = "data/realtime",
     static_data_directory: Path = Path("data/static"),
     output_path: Path = COMPLETENESS_PATH,
     plot_path: Path = COMPLETENESS_PLOT_PATH,

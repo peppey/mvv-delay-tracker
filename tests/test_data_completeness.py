@@ -23,7 +23,53 @@ def test_load_munich_schedule_uses_geographic_stops(tmp_path):
     pd.DataFrame({
         "route_id": ["route-s6"],
         "route_short_name": ["S6"],
+        "route_long_name": ["S-Bahn"],
+        "agency_id": ["s-bahn-munich"],
+        "route_type": ["3"],
     }).to_csv(tmp_path / "routes.txt", index=False)
+    pd.DataFrame({
+        "agency_id": ["s-bahn-munich"],
+        "agency_name": ["DB S-Bahn München"],
+    }).to_csv(tmp_path / "agency.txt", index=False)
+    pd.DataFrame({
+        "line": ["S6"],
+        "mode": ["S-Bahn"],
+    }).to_csv(tmp_path / "munich_lines.csv", index=False)
+    pd.DataFrame({"stop_id": ["munich-stop"]}).to_csv(
+        tmp_path / "munich_stops.csv", index=False
+    )
+
+    result = load_munich_schedule(tmp_path)
+
+    assert list(result["trip_id"]) == ["munich-s6"]
+
+
+def test_load_munich_schedule_applies_agency_and_line_filters(tmp_path):
+    pd.DataFrame({
+        "trip_id": ["munich-s6", "other-s6", "other-line"],
+        "stop_id": ["munich-stop", "munich-stop", "munich-stop"],
+        "departure_time": ["08:00:00", "08:05:00", "08:10:00"],
+    }).to_csv(tmp_path / "stop_times.txt", index=False)
+    pd.DataFrame({
+        "trip_id": ["munich-s6", "other-s6", "other-line"],
+        "service_id": ["weekday"] * 3,
+        "route_id": ["route-s6", "foreign-s6", "route-x"],
+    }).to_csv(tmp_path / "trips.txt", index=False)
+    pd.DataFrame({
+        "route_id": ["route-s6", "foreign-s6", "route-x"],
+        "route_short_name": ["S6", "S6", "X"],
+        "route_long_name": ["S-Bahn", "S-Bahn", "Other"],
+        "agency_id": ["s-bahn-munich", "foreign", "s-bahn-munich"],
+        "route_type": ["3", "3", "3"],
+    }).to_csv(tmp_path / "routes.txt", index=False)
+    pd.DataFrame({
+        "agency_id": ["s-bahn-munich", "foreign"],
+        "agency_name": ["DB S-Bahn München", "Foreign Agency"],
+    }).to_csv(tmp_path / "agency.txt", index=False)
+    pd.DataFrame({
+        "line": ["S6"],
+        "mode": ["S-Bahn"],
+    }).to_csv(tmp_path / "munich_lines.csv", index=False)
     pd.DataFrame({"stop_id": ["munich-stop"]}).to_csv(
         tmp_path / "munich_stops.csv", index=False
     )

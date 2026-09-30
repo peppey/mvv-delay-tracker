@@ -4,8 +4,49 @@ from pathlib import Path
 from mvv_delay_tracker.realtime.data_loading import compute_is_prediction
 
 
+REALTIME_DATA_DIRECTORY = Path("data/realtime")
+LEGACY_PARQUET_NAME = "mvv_realtime.parquet"
+
+
+def _empty_realtime_data() -> pd.DataFrame:
+    return pd.DataFrame(
+        columns=[
+            "observation_timestamp",
+            "trip_id",
+            "start_date",
+            "trip_schedule_relationship",
+            "stop_schedule_relationship",
+            "line",
+            "agency_id",
+            "agency_name",
+            "stop_id",
+            "stop_name",
+            "stop_sequence",
+            "departure_time",
+            "departure_delay",
+            "arrival_time",
+            "arrival_delay",
+            "is_prediction",
+        ]
+    )
+
+
+def _realtime_parquet_paths(data_path: Path) -> list[Path]:
+    if data_path.is_file():
+        return [data_path]
+    if not data_path.exists():
+        return []
+    return sorted(
+        path
+        for path in data_path.rglob("*.parquet")
+        if path.name == LEGACY_PARQUET_NAME
+        or path.name == "data.parquet"
+        or path.parent.name == "previous"
+    )
+
+
 def load_existing_realtime_data(
-    parquet_path: str = "data/realtime/mvv_realtime.parquet",
+    parquet_path: str = "data/realtime",
     agency_path: str = "data/static/agency.txt",
 ) -> pd.DataFrame:
     """
@@ -15,8 +56,15 @@ def load_existing_realtime_data(
     columns to their string names.
     """
 
+    parquet_paths = _realtime_parquet_paths(Path(parquet_path))
+    if not parquet_paths:
+        return _empty_realtime_data()
+
     try:
-        existing_df = pd.read_parquet(parquet_path)
+        existing_df = pd.concat(
+            [pd.read_parquet(path) for path in parquet_paths],
+            ignore_index=True,
+        )
 
         if "agency_name" not in existing_df.columns:
             existing_df["agency_name"] = pd.NA
@@ -83,29 +131,64 @@ def load_existing_realtime_data(
                 .astype("string")
             )
 
+        deduplication_columns = [
+            "trip_id",
+            "start_date",
+            "stop_id",
+            "agency_id",
+        ]
+        if all(column in existing_df.columns for column in deduplication_columns):
+            existing_df = existing_df.drop_duplicates(
+                subset=deduplication_columns,
+                keep="last",
+            ).reset_index(drop=True)
         return existing_df
 
     except FileNotFoundError:
-        return pd.DataFrame(
-            columns=[
-                "observation_timestamp",
-                "trip_id",
-                "start_date",
-                "trip_schedule_relationship",
-                "stop_schedule_relationship",
-                "line",
-                "agency_id",
-                "agency_name",
-                "stop_id",
-                "stop_name",
-                "stop_sequence",
-                "departure_time",
-                "departure_delay",
-                "arrival_time",
-                "arrival_delay",
-                "is_prediction",
-            ]
+        return _empty_realtime_data()
+
+
+def save_realtime_data_by_day(
+    realtime_df: pd.DataFrame,
+    data_directory: str | Path = REALTIME_DATA_DIRECTORY,
+) -> None:
+    """Merge new observations into partitioned files by observation date."""
+    if realtime_df.empty:
+        return
+
+    data_directory = Path(data_directory)
+    observations = realtime_df.copy()
+    observations["observation_timestamp"] = pd.to_datetime(
+        observations["observation_timestamp"], errors="coerce"
+    )
+    observations = observations.dropna(subset=["observation_timestamp"])
+    observations["_partition_date"] = observations[
+        "observation_timestamp"
+    ].dt.date
+
+    for partition_date, new_partition in observations.groupby(
+        "_partition_date", sort=True
+    ):
+        partition_path = (
+            data_directory
+            / f"year={partition_date.year:04d}"
+            / f"month={partition_date.month:02d}"
+            / f"day={partition_date.day:02d}"
+            / "data.parquet"
         )
+        partition_path.parent.mkdir(parents=True, exist_ok=True)
+        if partition_path.exists():
+            old_partition = pd.read_parquet(partition_path)
+            partition = pd.concat(
+                [old_partition, new_partition.drop(columns="_partition_date")],
+                ignore_index=True,
+            )
+        else:
+            partition = new_partition.drop(columns="_partition_date")
+        partition = update_realtime_data(
+            _empty_realtime_data(), partition
+        )
+        partition.to_parquet(partition_path, index=False)
 
 
 def update_realtime_data(
